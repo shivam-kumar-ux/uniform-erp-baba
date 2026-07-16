@@ -92,7 +92,7 @@
 
 <script>
   // TODO: paste your Apps Script Web App URL here (ends in /exec)
-  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec.";
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
 
   const form = document.getElementById("loginForm");
   const messageBox = document.getElementById("message");
@@ -108,12 +108,12 @@
     messageBox.style.display = "none";
 
     try {
-      const response = await fetch(API_URL, {
-        method: "POST",
-        // text/plain avoids a CORS preflight request against Apps Script
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ action: "login", username: username, password: password })
-      });
+      const url = API_URL
+        + "?action=login"
+        + "&username=" + encodeURIComponent(username)
+        + "&password=" + encodeURIComponent(password);
+
+      const response = await fetch(url, { method: "GET" });
 
       const data = await response.json();
 
