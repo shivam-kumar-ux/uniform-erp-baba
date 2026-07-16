@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UniformERP - Login</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: linear-gradient(135deg, #1e3a5f, #2c5282);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .login-box {
+    background: #fff;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    width: 100%;
+    max-width: 360px;
+  }
+  .login-box h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+    color: #1e3a5f;
+  }
+  .login-box p.subtitle {
+    margin: 0 0 24px;
+    color: #666;
+    font-size: 14px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    color: #333;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  button {
+    width: 100%;
+    padding: 12px;
+    background: #2c5282;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { background: #1e3a5f; }
+  button:disabled { background: #999; cursor: not-allowed; }
+  #message {
+    margin-top: 14px;
+    font-size: 13px;
+    text-align: center;
+    display: none;
+  }
+  #message.error { color: #c0392b; }
+  #message.success { color: #1e7e34; }
+</style>
+</head>
+<body>
+
+<div class="login-box">
+  <h1>UniformERP</h1>
+  <p class="subtitle">BABA General Store &mdash; Shahpur &amp; Telaiya Dam</p>
+
+  <form id="loginForm">
+    <label for="username">Username</label>
+    <input type="text" id="username" required autocomplete="username">
+
+    <label for="password">Password</label>
+    <input type="password" id="password" required autocomplete="current-password">
+
+    <button type="submit" id="loginBtn">Log In</button>
+  </form>
+
+  <div id="message"></div>
+</div>
+
+<script>
+  // TODO: paste your Apps Script Web App URL here (ends in /exec)
+  const API_URL = "PASTE_YOUR_APPS_SCRIPT_URL_HERE";
+
+  const form = document.getElementById("loginForm");
+  const messageBox = document.getElementById("message");
+  const loginBtn = document.getElementById("loginBtn");
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value;
+
+    loginBtn.disabled = true;
+    loginBtn.textContent = "Logging in...";
+    messageBox.style.display = "none";
+
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        // text/plain avoids a CORS preflight request against Apps Script
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "login", username: username, password: password })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        localStorage.setItem("uniformerp_token", data.token);
+        localStorage.setItem("uniformerp_name", data.name);
+        localStorage.setItem("uniformerp_role", data.role);
+        localStorage.setItem("uniformerp_branch", data.branch);
+
+        messageBox.textContent = "Login successful. Redirecting...";
+        messageBox.className = "success";
+        messageBox.style.display = "block";
+
+        // Phase 8 will build this dashboard page; for now this will 404, that's expected.
+        setTimeout(function () { window.location.href = "dashboard.html"; }, 800);
+      } else {
+        messageBox.textContent = data.message || "Login failed.";
+        messageBox.className = "error";
+        messageBox.style.display = "block";
+        loginBtn.disabled = false;
+        loginBtn.textContent = "Log In";
+      }
+    } catch (err) {
+      messageBox.textContent = "Could not reach the server. Check your internet connection.";
+      messageBox.className = "error";
+      messageBox.style.display = "block";
+      loginBtn.disabled = false;
+      loginBtn.textContent = "Log In";
+    }
+  });
+</script>
+
+</body>
+</html>
