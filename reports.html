@@ -84,6 +84,10 @@
   let activeTab = "sales";
 
   if (!token) window.location.href = "login.html";
+  if (localStorage.getItem("uniformerp_role") !== "Owner") {
+    alert("This page is only accessible to the Owner.");
+    window.location.href = "dashboard.html";
+  }
 
   // Default range: last 30 days
   const today = new Date();

@@ -51,12 +51,12 @@
   <a href="finance.html">Finance</a>
   <a href="inventory.html">Inventory</a>
   <a href="purchase.html">Purchase Entry</a>
-  <a href="reports.html">Reports</a>
-  <a href="students.html">Students</a>
-  <a href="products.html">Products</a>
-  <a href="schools.html">Schools</a>
-  <a href="suppliers.html">Suppliers</a>
-  <a href="colours-sizes.html">Colours/Sizes</a>
+  <a href="reports.html" id="navReports">Reports</a>
+  <a href="students.html" id="navStudents">Students</a>
+  <a href="products.html" id="navProducts">Products</a>
+  <a href="schools.html" id="navSchools">Schools</a>
+  <a href="suppliers.html" id="navSuppliers">Suppliers</a>
+  <a href="colours-sizes.html" id="navColoursSizes">Colours/Sizes</a>
   <a href="users.html" id="navUsers">User Management</a>
   <a href="logs.html" id="navLogs">Audit Logs</a>
 </nav>
@@ -98,8 +98,9 @@
 
   // Hide Owner-only pages from Staff so they don't hit permission errors
   if (localStorage.getItem("uniformerp_role") !== "Owner") {
-    document.getElementById("navUsers").style.display = "none";
-    document.getElementById("navLogs").style.display = "none";
+    ["navUsers", "navLogs", "navReports", "navStudents", "navProducts", "navSchools", "navSuppliers", "navColoursSizes"].forEach(function (id) {
+      document.getElementById(id).style.display = "none";
+    });
   }
 
   function logout() { localStorage.clear(); window.location.href = "login.html"; }

@@ -76,6 +76,10 @@
   let editingId = null;
 
   if (!token) window.location.href = "login.html";
+  if (localStorage.getItem("uniformerp_role") !== "Owner") {
+    alert("This page is only accessible to the Owner.");
+    window.location.href = "dashboard.html";
+  }
 
   function logout() { localStorage.clear(); window.location.href = "login.html"; }
 

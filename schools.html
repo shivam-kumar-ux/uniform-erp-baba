@@ -86,6 +86,10 @@
   if (!token) {
     window.location.href = "login.html";
   }
+  if (localStorage.getItem("uniformerp_role") !== "Owner") {
+    alert("This page is only accessible to the Owner.");
+    window.location.href = "dashboard.html";
+  }
 
   document.getElementById("userLabel").textContent =
     (localStorage.getItem("uniformerp_name") || "") + " (" + (localStorage.getItem("uniformerp_role") || "") + ")";
