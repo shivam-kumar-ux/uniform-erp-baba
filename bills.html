@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UniformERP - Bill History</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; }
+  header {
+    background: #1e3a5f; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header button {
+    background: #c0392b; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; margin-left: 12px; font-size: 13px;
+  }
+  nav { max-width: 1000px; margin: 16px auto 0; padding: 0 16px; font-size: 13px; }
+  nav a { color: #2c5282; text-decoration: none; margin-right: 16px; }
+  .container { max-width: 1000px; margin: 16px auto 24px; padding: 0 16px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
+  .toolbar { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .toolbar select, .toolbar input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+  .summary { display: flex; gap: 20px; margin-bottom: 16px; }
+  .summary-box { background: #f4f6f8; border-radius: 6px; padding: 10px 16px; font-size: 13px; }
+  .summary-box strong { display: block; font-size: 18px; color: #1e3a5f; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+  th { color: #666; font-weight: 600; }
+  .status-tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .status-Paid { background: #e8f5e9; color: #1e7e34; }
+  .status-Partial { background: #fff8e1; color: #b8860b; }
+  .status-Due { background: #fdecea; color: #c0392b; }
+  .link-btn { background: none; border: none; color: #2c5282; cursor: pointer; font-size: 13px; padding: 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UniformERP — Bill History</h1>
+  <div><button onclick="logout()">Log Out</button></div>
+</header>
+
+<nav>
+  <a href="billing.html">New Bill</a>
+  <a href="inventory.html">Inventory</a>
+</nav>
+
+<div class="container">
+  <div class="card">
+    <div class="summary">
+      <div class="summary-box">Total Bills<strong id="totalBills">-</strong></div>
+      <div class="summary-box">Total Sales<strong id="totalSales">-</strong></div>
+      <div class="summary-box">Total Due (Pending)<strong id="totalDue">-</strong></div>
+    </div>
+    <div class="toolbar">
+      <select id="branchFilter" onchange="loadBills()">
+        <option value="">All Branches</option>
+        <option value="Shahpur">Shahpur</option>
+        <option value="Telaiya Dam">Telaiya Dam</option>
+      </select>
+      <input id="searchBox" placeholder="Search by student name, admission no. or bill no..." oninput="renderTable()" style="min-width:260px;">
+    </div>
+    <table>
+      <thead><tr><th>Bill No</th><th>Date</th><th>Student</th><th>Admission No.</th><th>Branch</th><th>Total</th><th>Paid</th><th>Due</th><th>Status</th><th></th></tr></thead>
+      <tbody id="billsBody"><tr><td colspan="10">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
+  const token = localStorage.getItem("uniformerp_token");
+  let allBills = [];
+
+  if (!token) window.location.href = "login.html";
+
+  function logout() { localStorage.clear(); window.location.href = "login.html"; }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  async function loadBills() {
+    const branch = document.getElementById("branchFilter").value;
+    const url = API_URL + "?action=listBills&token=" + encodeURIComponent(token) + (branch ? "&branch=" + encodeURIComponent(branch) : "");
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.success) {
+      document.getElementById("billsBody").innerHTML = "<tr><td colspan='10'>" + escapeHtml(data.message) + "</td></tr>";
+      return;
+    }
+    allBills = data.data;
+    renderTable();
+  }
+
+  function renderTable() {
+    const search = document.getElementById("searchBox").value.trim().toLowerCase();
+    let rows = allBills;
+    if (search) {
+      rows = rows.filter(function (b) {
+        return String(b.StudentName).toLowerCase().indexOf(search) !== -1 ||
+               String(b.AdmissionNo).toLowerCase().indexOf(search) !== -1 ||
+               String(b.BillNo).toLowerCase().indexOf(search) !== -1;
+      });
+    }
+
+    const tbody = document.getElementById("billsBody");
+    tbody.innerHTML = "";
+    if (rows.length === 0) {
+      tbody.innerHTML = "<tr><td colspan='10'>No bills found.</td></tr>";
+    } else {
+      rows.forEach(function (b) {
+        const tr = document.createElement("tr");
+        const billDate = new Date(b.BillDate).toLocaleDateString();
+        tr.innerHTML =
+          "<td>" + escapeHtml(b.BillNo) + "</td>" +
+          "<td>" + billDate + "</td>" +
+          "<td>" + escapeHtml(b.StudentName) + "</td>" +
+          "<td>" + escapeHtml(b.AdmissionNo) + "</td>" +
+          "<td>" + escapeHtml(b.Branch) + "</td>" +
+          "<td>₹" + b.TotalAmount + "</td>" +
+          "<td>₹" + b.AmountPaid + "</td>" +
+          "<td>₹" + b.AmountDue + "</td>" +
+          "<td><span class='status-tag status-" + b.Status + "'>" + b.Status + "</span></td>" +
+          "<td><button class='link-btn' onclick=\"window.location.href='receipt.html?billId=" + b.BillID + "'\">View / Print</button></td>";
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById("totalBills").textContent = allBills.length;
+    document.getElementById("totalSales").textContent = "₹" + allBills.reduce(function (s, b) { return s + Number(b.TotalAmount || 0); }, 0);
+    document.getElementById("totalDue").textContent = "₹" + allBills.reduce(function (s, b) { return s + Number(b.AmountDue || 0); }, 0);
+  }
+
+  loadBills();
+</script>
+
+</body>
+</html>
