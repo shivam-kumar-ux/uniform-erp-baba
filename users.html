@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UniformERP - User Management</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; }
+  header {
+    background: #1e3a5f; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header button {
+    background: #c0392b; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; margin-left: 12px; font-size: 13px;
+  }
+  nav { max-width: 900px; margin: 16px auto 0; padding: 0 16px; font-size: 13px; }
+  nav a { color: #2c5282; text-decoration: none; margin-right: 16px; }
+  .container { max-width: 900px; margin: 16px auto 24px; padding: 0 16px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-grid label { font-size: 12px; font-weight: 600; color: #444; display: block; margin-bottom: 4px; }
+  .form-grid input, .form-grid select {
+    width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;
+  }
+  .btn-primary {
+    background: #2c5282; color: white; border: none; padding: 10px 20px;
+    border-radius: 4px; font-size: 14px; cursor: pointer; margin-top: 12px;
+  }
+  .btn-primary:hover { background: #1e3a5f; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+  th { color: #666; font-weight: 600; }
+  .status-active { color: #1e7e34; font-weight: 600; }
+  .status-inactive { color: #c0392b; font-weight: 600; }
+  .role-owner { background: #fff3cd; color: #856404; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .role-staff { background: #e2e3e5; color: #383d41; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .link-btn { background: none; border: none; color: #2c5282; cursor: pointer; font-size: 13px; padding: 0; margin-right: 10px; }
+  #msg { font-size: 13px; margin-top: 10px; display: none; }
+  #msg.error { color: #c0392b; }
+  #msg.success { color: #1e7e34; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UniformERP — User Management</h1>
+  <div><button onclick="logout()">Log Out</button></div>
+</header>
+
+<nav>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="logs.html">Audit Logs</a>
+</nav>
+
+<div class="container">
+  <div class="card">
+    <h2>Add New User</h2>
+    <div class="form-grid">
+      <div><label>Full Name</label><input id="name" placeholder="e.g. Ramesh Kumar"></div>
+      <div><label>Username</label><input id="username" placeholder="e.g. ramesh"></div>
+      <div><label>Password</label><input id="password" type="password" placeholder="min. 6 characters"></div>
+      <div><label>Role</label>
+        <select id="role">
+          <option value="Staff">Staff</option>
+          <option value="Owner">Owner</option>
+        </select>
+      </div>
+      <div><label>Branch</label>
+        <select id="branch">
+          <option value="Shahpur">Shahpur</option>
+          <option value="Telaiya Dam">Telaiya Dam</option>
+          <option value="Both">Both</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="addUser()">Create User</button>
+    <div id="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>All Users</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Branch</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="usersBody"><tr><td colspan="6">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
+  const token = localStorage.getItem("uniformerp_token");
+
+  if (!token) window.location.href = "login.html";
+
+  function logout() { localStorage.clear(); window.location.href = "login.html"; }
+
+  function showMsg(text, type) {
+    const el = document.getElementById("msg");
+    el.textContent = text; el.className = type; el.style.display = "block";
+    setTimeout(function () { el.style.display = "none"; }, 4000);
+  }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  async function loadUsers() {
+    const res = await fetch(API_URL + "?action=listUsers&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    if (!data.success) { showMsg(data.message, "error"); return; }
+
+    const tbody = document.getElementById("usersBody");
+    tbody.innerHTML = "";
+    data.data.forEach(function (u) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + escapeHtml(u.Name) + "</td>" +
+        "<td>" + escapeHtml(u.Username) + "</td>" +
+        "<td><span class='role-" + u.Role.toLowerCase() + "'>" + u.Role + "</span></td>" +
+        "<td>" + escapeHtml(u.Branch) + "</td>" +
+        "<td class='" + (u.Status === "Active" ? "status-active" : "status-inactive") + "'>" + u.Status + "</td>" +
+        "<td>" +
+          "<button class='link-btn' onclick=\"resetPassword('" + u.UserID + "','" + escapeHtml(u.Name) + "')\">Reset Password</button>" +
+          "<button class='link-btn' onclick=\"toggleStatus('" + u.UserID + "')\">" + (u.Status === "Active" ? "Deactivate" : "Activate") + "</button>" +
+        "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function addUser() {
+    const name = document.getElementById("name").value.trim();
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value;
+    const role = document.getElementById("role").value;
+    const branch = document.getElementById("branch").value;
+
+    if (!name || !username) { showMsg("Name and username are required", "error"); return; }
+    if (password.length < 6) { showMsg("Password must be at least 6 characters", "error"); return; }
+
+    const params = new URLSearchParams({
+      action: "addUser", token: token, name: name, username: username, password: password, role: role, branch: branch
+    });
+    const res = await fetch(API_URL + "?" + params.toString());
+    const data = await res.json();
+    if (data.success) {
+      showMsg("User created. Share the username/password with them directly.", "success");
+      document.getElementById("name").value = "";
+      document.getElementById("username").value = "";
+      document.getElementById("password").value = "";
+      loadUsers();
+    } else {
+      showMsg(data.message || "Failed to create user.", "error");
+    }
+  }
+
+  async function toggleStatus(userId) {
+    const res = await fetch(API_URL + "?action=toggleUserStatus&token=" + encodeURIComponent(token) + "&userId=" + encodeURIComponent(userId));
+    const data = await res.json();
+    if (data.success) loadUsers(); else showMsg(data.message, "error");
+  }
+
+  async function resetPassword(userId, name) {
+    const newPassword = prompt("New password for " + name + " (min. 6 characters):");
+    if (!newPassword) return;
+    if (newPassword.length < 6) { showMsg("Password must be at least 6 characters", "error"); return; }
+
+    const res = await fetch(API_URL + "?action=resetUserPassword&token=" + encodeURIComponent(token) + "&userId=" + encodeURIComponent(userId) + "&newPassword=" + encodeURIComponent(newPassword));
+    const data = await res.json();
+    if (data.success) showMsg("Password updated for " + name, "success"); else showMsg(data.message, "error");
+  }
+
+  loadUsers();
+</script>
+
+</body>
+</html>
