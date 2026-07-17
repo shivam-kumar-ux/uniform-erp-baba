@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UniformERP - Billing</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; }
+  header {
+    background: #1e3a5f; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header button {
+    background: #c0392b; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; margin-left: 12px; font-size: 13px;
+  }
+  nav { max-width: 1000px; margin: 16px auto 0; padding: 0 16px; font-size: 13px; }
+  nav a { color: #2c5282; text-decoration: none; margin-right: 16px; }
+  nav a:hover { text-decoration: underline; }
+  .container { max-width: 1000px; margin: 16px auto 24px; padding: 0 16px; display: grid; grid-template-columns: 1.3fr 1fr; gap: 20px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
+  input, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; width: 100%; }
+  label { font-size: 12px; font-weight: 600; color: #444; display: block; margin-bottom: 4px; }
+  .student-result { padding: 10px; border: 1px solid #eee; border-radius: 6px; margin-top: 8px; cursor: pointer; }
+  .student-result:hover { background: #f4f6f8; }
+  .student-selected { background: #e8f0fe; border-radius: 6px; padding: 12px; margin-top: 10px; font-size: 13px; }
+  .item-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto; gap: 8px; align-items: end; margin-bottom: 10px; }
+  .item-grid label { font-size: 11px; }
+  .btn-primary {
+    background: #2c5282; color: white; border: none; padding: 10px 20px;
+    border-radius: 4px; font-size: 14px; cursor: pointer; margin-top: 8px;
+  }
+  .btn-primary:hover { background: #1e3a5f; }
+  .btn-add { background: #1e7e34; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; }
+  .remove-btn { background: none; border: none; color: #c0392b; cursor: pointer; font-size: 12px; }
+  .totals { margin-top: 14px; font-size: 14px; }
+  .totals div { display: flex; justify-content: space-between; padding: 4px 0; }
+  .totals .grand { font-weight: 700; font-size: 16px; border-top: 1px solid #ddd; margin-top: 6px; padding-top: 8px; }
+  #msg { font-size: 13px; margin-top: 10px; display: none; }
+  #msg.error { color: #c0392b; }
+  #msg.success { color: #1e7e34; }
+  .stock-note { font-size: 11px; color: #888; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UniformERP — Billing</h1>
+  <div><button onclick="logout()">Log Out</button></div>
+</header>
+
+<nav>
+  <a href="students.html">Students</a>
+  <a href="products.html">Products</a>
+  <a href="inventory.html">Inventory</a>
+  <a href="purchase.html">Purchase Entry</a>
+  <a href="bills.html">Bill History</a>
+</nav>
+
+<div class="container">
+  <div>
+    <div class="card">
+      <h2>1. Find Student</h2>
+      <input id="studentSearch" placeholder="Search by admission no. or name..." oninput="searchStudents()">
+      <div id="studentResults"></div>
+      <div id="studentSelected" class="student-selected" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <h2>2. Add Items</h2>
+      <div class="item-grid">
+        <div><label>Product</label><select id="itemProduct"></select></div>
+        <div><label>Colour</label><select id="itemColour"></select></div>
+        <div><label>Size</label><select id="itemSize"></select></div>
+        <div><label>Qty</label><input id="itemQty" type="number" min="1" value="1"></div>
+        <div><label>Price ₹</label><input id="itemPrice" type="number" min="0" step="0.01"></div>
+        <button class="btn-add" onclick="addToCart()">Add</button>
+      </div>
+      <div class="stock-note" id="stockNote"></div>
+    </div>
+  </div>
+
+  <div class="card" style="height: fit-content;">
+    <h2>Cart</h2>
+    <table>
+      <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th><th></th></tr></thead>
+      <tbody id="cartBody"><tr><td colspan="5" style="color:#999;">No items yet.</td></tr></tbody>
+    </table>
+    <div class="totals">
+      <div><span>Total Amount</span><span id="totalAmount">₹0</span></div>
+    </div>
+    <label style="margin-top:10px;">Branch</label>
+    <select id="branch">
+      <option value="Shahpur">Shahpur</option>
+      <option value="Telaiya Dam">Telaiya Dam</option>
+    </select>
+    <label style="margin-top:10px;">Amount Paid Now</label>
+    <input id="amountPaid" type="number" min="0" step="0.01" value="0">
+    <label style="margin-top:10px;">Payment Mode</label>
+    <select id="paymentMode">
+      <option>Cash</option>
+      <option>UPI</option>
+      <option>Card</option>
+    </select>
+    <div class="totals">
+      <div><span>Amount Due</span><span id="amountDue">₹0</span></div>
+    </div>
+    <button class="btn-primary" onclick="checkout()">Generate Bill</button>
+    <div id="msg"></div>
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
+  const token = localStorage.getItem("uniformerp_token");
+  let selectedStudent = null;
+  let cart = [];
+  let allInventory = [];
+
+  if (!token) window.location.href = "login.html";
+
+  function logout() { localStorage.clear(); window.location.href = "login.html"; }
+
+  function showMsg(text, type) {
+    const el = document.getElementById("msg");
+    el.textContent = text; el.className = type; el.style.display = "block";
+    setTimeout(function () { el.style.display = "none"; }, 4000);
+  }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  let searchTimer;
+  function searchStudents() {
+    clearTimeout(searchTimer);
+    const q = document.getElementById("studentSearch").value.trim();
+    if (q.length < 2) { document.getElementById("studentResults").innerHTML = ""; return; }
+    searchTimer = setTimeout(async function () {
+      const res = await fetch(API_URL + "?action=listStudents&token=" + encodeURIComponent(token) + "&search=" + encodeURIComponent(q));
+      const data = await res.json();
+      const container = document.getElementById("studentResults");
+      container.innerHTML = "";
+      if (data.success) {
+        data.data.slice(0, 8).forEach(function (s) {
+          const div = document.createElement("div");
+          div.className = "student-result";
+          div.textContent = s.StudentName + " — Adm# " + s.AdmissionNo + " — " + s.SchoolName + " (Class " + s.ClassName + s.Section + ")";
+          div.onclick = function () { selectStudent(s); };
+          container.appendChild(div);
+        });
+      }
+    }, 300);
+  }
+
+  function selectStudent(s) {
+    selectedStudent = s;
+    document.getElementById("studentResults").innerHTML = "";
+    document.getElementById("studentSearch").value = "";
+    const box = document.getElementById("studentSelected");
+    box.style.display = "block";
+    box.innerHTML = "<strong>" + escapeHtml(s.StudentName) + "</strong> — Adm# " + escapeHtml(s.AdmissionNo) +
+      "<br>" + escapeHtml(s.SchoolName) + " — Class " + escapeHtml(s.ClassName) + escapeHtml(s.Section) +
+      " <button onclick='clearStudent()' style='margin-left:10px;background:none;border:none;color:#c0392b;cursor:pointer;'>Change</button>";
+  }
+
+  function clearStudent() {
+    selectedStudent = null;
+    document.getElementById("studentSelected").style.display = "none";
+  }
+
+  async function loadDropdown(action, selectId, valueField, labelField, filterActive) {
+    const res = await fetch(API_URL + "?action=" + action + "&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    if (!data.success) return;
+    const select = document.getElementById(selectId);
+    let items = data.data;
+    if (filterActive) items = items.filter(function (i) { return i.Status === "Active"; });
+    items.forEach(function (item) {
+      const opt = document.createElement("option");
+      opt.value = item[valueField];
+      opt.textContent = item[labelField];
+      select.appendChild(opt);
+    });
+  }
+
+  async function loadInventory() {
+    const branch = document.getElementById("branch").value;
+    const res = await fetch(API_URL + "?action=listInventory&token=" + encodeURIComponent(token) + "&branch=" + encodeURIComponent(branch));
+    const data = await res.json();
+    if (data.success) allInventory = data.data;
+    updateStockNote();
+  }
+
+  function updateStockNote() {
+    const productId = document.getElementById("itemProduct").value;
+    const colourId = document.getElementById("itemColour").value;
+    const sizeId = document.getElementById("itemSize").value;
+    const match = allInventory.find(function (i) {
+      return i.ProductID === productId && i.ColourID === colourId && i.SizeID === sizeId;
+    });
+    document.getElementById("stockNote").textContent = match ? ("Available stock: " + match.CurrentStock) : "Available stock: 0";
+  }
+
+  function addToCart() {
+    const productId = document.getElementById("itemProduct").value;
+    const colourId = document.getElementById("itemColour").value;
+    const sizeId = document.getElementById("itemSize").value;
+    const qty = Number(document.getElementById("itemQty").value);
+    const price = Number(document.getElementById("itemPrice").value);
+
+    if (!productId || !colourId || !sizeId) { showMsg("Select product, colour and size", "error"); return; }
+    if (!qty || qty <= 0) { showMsg("Enter a valid quantity", "error"); return; }
+    if (!price || price < 0) { showMsg("Enter a price", "error"); return; }
+
+    const match = allInventory.find(function (i) {
+      return i.ProductID === productId && i.ColourID === colourId && i.SizeID === sizeId;
+    });
+    const available = match ? Number(match.CurrentStock) : 0;
+    if (qty > available) { showMsg("Only " + available + " in stock for this item", "error"); return; }
+
+    cart.push({
+      productId: productId,
+      colourId: colourId,
+      sizeId: sizeId,
+      qty: qty,
+      unitPrice: price,
+      label: document.getElementById("itemProduct").selectedOptions[0].textContent + " / " +
+             document.getElementById("itemColour").selectedOptions[0].textContent + " / " +
+             document.getElementById("itemSize").selectedOptions[0].textContent
+    });
+    renderCart();
+    document.getElementById("itemQty").value = 1;
+    document.getElementById("itemPrice").value = "";
+  }
+
+  function removeFromCart(idx) {
+    cart.splice(idx, 1);
+    renderCart();
+  }
+
+  function renderCart() {
+    const tbody = document.getElementById("cartBody");
+    tbody.innerHTML = "";
+    if (cart.length === 0) {
+      tbody.innerHTML = "<tr><td colspan='5' style='color:#999;'>No items yet.</td></tr>";
+    } else {
+      cart.forEach(function (item, idx) {
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td>" + escapeHtml(item.label) + "</td>" +
+          "<td>" + item.qty + "</td>" +
+          "<td>₹" + item.unitPrice + "</td>" +
+          "<td>₹" + (item.qty * item.unitPrice) + "</td>" +
+          "<td><button class='remove-btn' onclick='removeFromCart(" + idx + ")'>Remove</button></td>";
+        tbody.appendChild(tr);
+      });
+    }
+    const total = cart.reduce(function (sum, item) { return sum + item.qty * item.unitPrice; }, 0);
+    document.getElementById("totalAmount").textContent = "₹" + total;
+    updateDue();
+  }
+
+  function updateDue() {
+    const total = cart.reduce(function (sum, item) { return sum + item.qty * item.unitPrice; }, 0);
+    const paid = Number(document.getElementById("amountPaid").value) || 0;
+    const due = Math.max(0, total - paid);
+    document.getElementById("amountDue").textContent = "₹" + due;
+  }
+  document.getElementById("amountPaid").addEventListener("input", updateDue);
+
+  async function checkout() {
+    if (!selectedStudent) { showMsg("Please select a student first", "error"); return; }
+    if (cart.length === 0) { showMsg("Cart is empty", "error"); return; }
+
+    const params = new URLSearchParams({
+      action: "createBill",
+      token: token,
+      studentId: selectedStudent.StudentID,
+      branch: document.getElementById("branch").value,
+      items: JSON.stringify(cart),
+      amountPaid: document.getElementById("amountPaid").value || 0,
+      paymentMode: document.getElementById("paymentMode").value
+    });
+
+    const res = await fetch(API_URL + "?" + params.toString());
+    const data = await res.json();
+    if (data.success) {
+      showMsg("Bill " + data.bill.billNo + " created successfully!", "success");
+      localStorage.setItem("lastBillId", data.bill.billId);
+      cart = [];
+      renderCart();
+      clearStudent();
+      document.getElementById("amountPaid").value = 0;
+      loadInventory();
+      setTimeout(function () { window.location.href = "receipt.html?billId=" + data.bill.billId; }, 1200);
+    } else {
+      showMsg(data.message || "Failed to create bill.", "error");
+    }
+  }
+
+  document.getElementById("itemProduct").addEventListener("change", updateStockNote);
+  document.getElementById("itemColour").addEventListener("change", updateStockNote);
+  document.getElementById("itemSize").addEventListener("change", updateStockNote);
+  document.getElementById("branch").addEventListener("change", loadInventory);
+
+  loadDropdown("listProducts", "itemProduct", "ProductID", "ProductName", true);
+  loadDropdown("listColours", "itemColour", "ColourID", "ColourName", false);
+  loadDropdown("listSizes", "itemSize", "SizeID", "SizeName", false);
+  loadInventory();
+</script>
+
+</body>
+</html>
