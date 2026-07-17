@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UniformERP - Reports</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; }
+  header {
+    background: #1e3a5f; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header button {
+    background: #c0392b; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; margin-left: 12px; font-size: 13px;
+  }
+  nav { max-width: 1000px; margin: 16px auto 0; padding: 0 16px; font-size: 13px; }
+  nav a { color: #2c5282; text-decoration: none; margin-right: 16px; }
+  .container { max-width: 1000px; margin: 16px auto 24px; padding: 0 16px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .toolbar { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: end; }
+  .toolbar label { font-size: 12px; font-weight: 600; color: #444; display: block; margin-bottom: 4px; }
+  .toolbar select, .toolbar input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+  .link-btn { background: #2c5282; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tab-btn { background: #eee; border: none; padding: 8px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; }
+  .tab-btn.active { background: #2c5282; color: white; }
+  .summary { display: flex; gap: 20px; margin-bottom: 16px; flex-wrap: wrap; }
+  .summary-box { background: #f4f6f8; border-radius: 6px; padding: 10px 16px; font-size: 13px; }
+  .summary-box strong { display: block; font-size: 18px; color: #1e3a5f; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+  th { color: #666; font-weight: 600; }
+  #msg { font-size: 13px; margin-top: 10px; display: none; color: #c0392b; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UniformERP — Reports</h1>
+  <div><button onclick="logout()">Log Out</button></div>
+</header>
+
+<nav>
+  <a href="billing.html">New Bill</a>
+  <a href="bills.html">Bill History</a>
+  <a href="finance.html">Finance</a>
+  <a href="inventory.html">Inventory</a>
+</nav>
+
+<div class="container">
+  <div class="card">
+    <div class="toolbar">
+      <div><label>From</label><input id="fromDate" type="date"></div>
+      <div><label>To</label><input id="toDate" type="date"></div>
+      <div><label>Branch</label>
+        <select id="branch">
+          <option value="">All Branches</option>
+          <option value="Shahpur">Shahpur</option>
+          <option value="Telaiya Dam">Telaiya Dam</option>
+        </select>
+      </div>
+      <button class="link-btn" onclick="loadActiveReport()">Apply Filter</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="sales" onclick="switchTab('sales')">Sales Summary</button>
+      <button class="tab-btn" data-tab="product" onclick="switchTab('product')">Product-wise</button>
+      <button class="tab-btn" data-tab="school" onclick="switchTab('school')">School-wise</button>
+      <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')">Staff-wise</button>
+      <button class="tab-btn" data-tab="profit" onclick="switchTab('profit')">Profit</button>
+    </div>
+
+    <div id="reportContent">Loading...</div>
+    <div id="msg"></div>
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
+  const token = localStorage.getItem("uniformerp_token");
+  let activeTab = "sales";
+
+  if (!token) window.location.href = "login.html";
+
+  // Default range: last 30 days
+  const today = new Date();
+  const monthAgo = new Date();
+  monthAgo.setDate(today.getDate() - 30);
+  document.getElementById("toDate").valueAsDate = today;
+  document.getElementById("fromDate").valueAsDate = monthAgo;
+
+  function logout() { localStorage.clear(); window.location.href = "login.html"; }
+
+  function showMsg(text) {
+    const el = document.getElementById("msg");
+    el.textContent = text; el.style.display = "block";
+    setTimeout(function () { el.style.display = "none"; }, 3500);
+  }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function switchTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll(".tab-btn").forEach(function (btn) {
+      btn.classList.toggle("active", btn.dataset.tab === tab);
+    });
+    loadActiveReport();
+  }
+
+  function buildUrl(action) {
+    const from = document.getElementById("fromDate").value;
+    const to = document.getElementById("toDate").value;
+    const branch = document.getElementById("branch").value;
+    return API_URL + "?action=" + action + "&token=" + encodeURIComponent(token) +
+      "&fromDate=" + encodeURIComponent(from) + "&toDate=" + encodeURIComponent(to) +
+      (branch ? "&branch=" + encodeURIComponent(branch) : "");
+  }
+
+  async function loadActiveReport() {
+    document.getElementById("reportContent").innerHTML = "Loading...";
+    if (activeTab === "sales") return loadSalesSummary();
+    if (activeTab === "product") return loadProductWise();
+    if (activeTab === "school") return loadSchoolWise();
+    if (activeTab === "staff") return loadStaffWise();
+    if (activeTab === "profit") return loadProfit();
+  }
+
+  async function loadSalesSummary() {
+    const res = await fetch(buildUrl("salesSummaryReport"));
+    const data = await res.json();
+    if (!data.success) { showMsg(data.message); return; }
+    const d = data.data;
+    let html = "<div class='summary'>" +
+      "<div class='summary-box'>Total Bills<strong>" + d.totals.billCount + "</strong></div>" +
+      "<div class='summary-box'>Total Sales<strong>₹" + d.totals.totalSales + "</strong></div>" +
+      "<div class='summary-box'>Total Collected<strong>₹" + d.totals.totalPaid + "</strong></div>" +
+      "<div class='summary-box'>Total Due<strong>₹" + d.totals.totalDue + "</strong></div>" +
+      "</div>" +
+      "<table><thead><tr><th>Date</th><th>Bills</th><th>Sales</th><th>Collected</th><th>Due</th></tr></thead><tbody>";
+    if (d.rows.length === 0) html += "<tr><td colspan='5'>No sales in this range.</td></tr>";
+    d.rows.forEach(function (r) {
+      html += "<tr><td>" + r.date + "</td><td>" + r.billCount + "</td><td>₹" + r.totalSales + "</td><td>₹" + r.totalPaid + "</td><td>₹" + r.totalDue + "</td></tr>";
+    });
+    html += "</tbody></table>";
+    document.getElementById("reportContent").innerHTML = html;
+  }
+
+  async function loadProductWise() {
+    const res = await fetch(buildUrl("productWiseReport"));
+    const data = await res.json();
+    if (!data.success) { showMsg(data.message); return; }
+    let html = "<table><thead><tr><th>Product</th><th>Units Sold</th><th>Revenue</th></tr></thead><tbody>";
+    if (data.data.length === 0) html += "<tr><td colspan='3'>No sales in this range.</td></tr>";
+    data.data.forEach(function (p) {
+      html += "<tr><td>" + escapeHtml(p.productName) + "</td><td>" + p.qtySold + "</td><td>₹" + p.revenue + "</td></tr>";
+    });
+    html += "</tbody></table>";
+    document.getElementById("reportContent").innerHTML = html;
+  }
+
+  async function loadSchoolWise() {
+    const res = await fetch(buildUrl("schoolWiseReport"));
+    const data = await res.json();
+    if (!data.success) { showMsg(data.message); return; }
+    let html = "<table><thead><tr><th>School</th><th>Bills</th><th>Revenue</th></tr></thead><tbody>";
+    if (data.data.length === 0) html += "<tr><td colspan='3'>No sales in this range.</td></tr>";
+    data.data.forEach(function (s) {
+      html += "<tr><td>" + escapeHtml(s.schoolName) + "</td><td>" + s.billCount + "</td><td>₹" + s.revenue + "</td></tr>";
+    });
+    html += "</tbody></table>";
+    document.getElementById("reportContent").innerHTML = html;
+  }
+
+  async function loadStaffWise() {
+    const res = await fetch(buildUrl("staffWiseReport"));
+    const data = await res.json();
+    if (!data.success) { showMsg(data.message); return; }
+    let html = "<table><thead><tr><th>Staff</th><th>Bills</th><th>Revenue</th></tr></thead><tbody>";
+    if (data.data.length === 0) html += "<tr><td colspan='3'>No sales in this range.</td></tr>";
+    data.data.forEach(function (s) {
+      html += "<tr><td>" + escapeHtml(s.staffName) + "</td><td>" + s.billCount + "</td><td>₹" + s.revenue + "</td></tr>";
+    });
+    html += "</tbody></table>";
+    document.getElementById("reportContent").innerHTML = html;
+  }
+
+  async function loadProfit() {
+    const res = await fetch(buildUrl("profitReport"));
+    const data = await res.json();
+    if (!data.success) { showMsg(data.message); return; }
+    const d = data.data;
+    document.getElementById("reportContent").innerHTML =
+      "<div class='summary'>" +
+      "<div class='summary-box'>Total Revenue<strong>₹" + d.totalRevenue + "</strong></div>" +
+      "<div class='summary-box'>Total Cost (COGS)<strong>₹" + d.totalCost + "</strong></div>" +
+      "<div class='summary-box'>Total Profit<strong>₹" + d.totalProfit + "</strong></div>" +
+      "<div class='summary-box'>Margin<strong>" + d.marginPercent + "%</strong></div>" +
+      "</div>";
+  }
+
+  loadActiveReport();
+</script>
+
+</body>
+</html>
