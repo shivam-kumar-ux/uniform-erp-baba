@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UniformERP - Students</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; }
+  header {
+    background: #1e3a5f; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header button {
+    background: #c0392b; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; margin-left: 12px; font-size: 13px;
+  }
+  .container { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .form-grid label { font-size: 12px; font-weight: 600; color: #444; display: block; margin-bottom: 4px; }
+  .form-grid input, .form-grid select {
+    width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;
+  }
+  .btn-primary {
+    background: #2c5282; color: white; border: none; padding: 10px 20px;
+    border-radius: 4px; font-size: 14px; cursor: pointer; margin-top: 12px;
+  }
+  .btn-primary:hover { background: #1e3a5f; }
+  .btn-small { background: #2c5282; color: white; border: none; padding: 6px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+  .session-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 12px; }
+  .search-row { margin-bottom: 16px; }
+  .search-row input { width: 100%; max-width: 320px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+  th { color: #666; font-weight: 600; }
+  .status-active { color: #1e7e34; font-weight: 600; }
+  .status-inactive { color: #c0392b; font-weight: 600; }
+  .link-btn { background: none; border: none; color: #2c5282; cursor: pointer; font-size: 13px; padding: 0; margin-right: 10px; }
+  #msg { font-size: 13px; margin-top: 10px; display: none; }
+  #msg.error { color: #c0392b; }
+  #msg.success { color: #1e7e34; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UniformERP — Students</h1>
+  <div><button onclick="logout()">Log Out</button></div>
+</header>
+
+<div class="container">
+  <div class="card">
+    <h2 id="formTitle">Add Student</h2>
+    <div class="form-grid">
+      <div><label>Admission No.</label><input id="admissionNo"></div>
+      <div><label>Student Name</label><input id="studentName"></div>
+      <div><label>School</label><select id="schoolId"><option value="">-- Select --</option></select></div>
+      <div><label>Class</label><input id="className" placeholder="e.g. 6"></div>
+      <div><label>Section</label><input id="section" placeholder="e.g. A"></div>
+      <div>
+        <label>Academic Session</label>
+        <div class="session-row">
+          <select id="sessionId" style="flex:1;"><option value="">-- Select --</option></select>
+        </div>
+      </div>
+      <div><label>Parent Phone</label><input id="parentPhone"></div>
+    </div>
+    <button class="btn-primary" onclick="saveStudent()">Save Student</button>
+    <button class="btn-primary" style="background:#888; display:none;" id="cancelBtn" onclick="resetForm()">Cancel Edit</button>
+    <div id="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>No academic sessions yet? Add one quickly</h2>
+    <div class="session-row">
+      <div style="flex:1;"><label style="font-size:12px;">Session Name (e.g. 2026-27)</label><input id="newSessionName"></div>
+      <div><label style="font-size:12px;">Start Date</label><input id="newSessionStart" type="date"></div>
+      <div><label style="font-size:12px;">End Date</label><input id="newSessionEnd" type="date"></div>
+      <button class="btn-small" onclick="addSession()">Add Session</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>All Students</h2>
+    <div class="search-row">
+      <input id="searchBox" placeholder="Search by name or admission no..." oninput="loadStudents()">
+    </div>
+    <table>
+      <thead><tr><th>Adm. No.</th><th>Name</th><th>School</th><th>Class</th><th>Sec</th><th>Session</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="studentsBody"><tr><td colspan="9">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
+  const token = localStorage.getItem("uniformerp_token");
+  let editingId = null;
+
+  if (!token) window.location.href = "login.html";
+
+  function logout() { localStorage.clear(); window.location.href = "login.html"; }
+
+  function showMsg(text, type) {
+    const el = document.getElementById("msg");
+    el.textContent = text; el.className = type; el.style.display = "block";
+    setTimeout(function () { el.style.display = "none"; }, 3500);
+  }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  async function loadSchoolsDropdown() {
+    const res = await fetch(API_URL + "?action=listSchools&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    if (!data.success) { showMsg(data.message, "error"); return; }
+    const select = document.getElementById("schoolId");
+    data.data.filter(function (s) { return s.Status === "Active"; }).forEach(function (s) {
+      const opt = document.createElement("option");
+      opt.value = s.SchoolID;
+      opt.textContent = s.SchoolName + " (" + s.Branch + ")";
+      select.appendChild(opt);
+    });
+  }
+
+  async function loadSessionsDropdown() {
+    const res = await fetch(API_URL + "?action=listSessions&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    if (!data.success) { showMsg(data.message, "error"); return; }
+    const select = document.getElementById("sessionId");
+    select.innerHTML = "<option value=''>-- Select --</option>";
+    data.data.forEach(function (s) {
+      const opt = document.createElement("option");
+      opt.value = s.SessionID;
+      opt.textContent = s.SessionName;
+      select.appendChild(opt);
+    });
+  }
+
+  async function addSession() {
+    const name = document.getElementById("newSessionName").value.trim();
+    if (!name) { showMsg("Enter a session name first", "error"); return; }
+    const params = new URLSearchParams({
+      action: "addSession", token: token, sessionName: name,
+      startDate: document.getElementById("newSessionStart").value,
+      endDate: document.getElementById("newSessionEnd").value
+    });
+    const res = await fetch(API_URL + "?" + params.toString());
+    const data = await res.json();
+    if (data.success) {
+      showMsg("Session added.", "success");
+      document.getElementById("newSessionName").value = "";
+      loadSessionsDropdown();
+    } else {
+      showMsg(data.message, "error");
+    }
+  }
+
+  async function loadStudents() {
+    const search = document.getElementById("searchBox").value.trim();
+    const url = API_URL + "?action=listStudents&token=" + encodeURIComponent(token) +
+      (search ? "&search=" + encodeURIComponent(search) : "");
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.success) { showMsg(data.message, "error"); return; }
+
+    const tbody = document.getElementById("studentsBody");
+    tbody.innerHTML = "";
+    if (data.data.length === 0) {
+      tbody.innerHTML = "<tr><td colspan='9'>No students found.</td></tr>";
+      return;
+    }
+    data.data.forEach(function (s) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + escapeHtml(s.AdmissionNo) + "</td>" +
+        "<td>" + escapeHtml(s.StudentName) + "</td>" +
+        "<td>" + escapeHtml(s.SchoolName) + "</td>" +
+        "<td>" + escapeHtml(s.ClassName) + "</td>" +
+        "<td>" + escapeHtml(s.Section) + "</td>" +
+        "<td>" + escapeHtml(s.SessionName) + "</td>" +
+        "<td>" + escapeHtml(s.ParentPhone) + "</td>" +
+        "<td class='" + (s.Status === "Active" ? "status-active" : "status-inactive") + "'>" + s.Status + "</td>" +
+        "<td>" +
+          "<button class='link-btn' onclick='editStudent(" + JSON.stringify(s).replace(/'/g, "&apos;") + ")'>Edit</button>" +
+          "<button class='link-btn' onclick=\"toggleStatus('" + s.StudentID + "')\">" + (s.Status === "Active" ? "Deactivate" : "Activate") + "</button>" +
+        "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  function editStudent(s) {
+    editingId = s.StudentID;
+    document.getElementById("admissionNo").value = s.AdmissionNo;
+    document.getElementById("studentName").value = s.StudentName;
+    document.getElementById("schoolId").value = s.SchoolID;
+    document.getElementById("className").value = s.ClassName;
+    document.getElementById("section").value = s.Section;
+    document.getElementById("sessionId").value = s.SessionID;
+    document.getElementById("parentPhone").value = s.ParentPhone;
+    document.getElementById("formTitle").textContent = "Edit Student";
+    document.getElementById("cancelBtn").style.display = "inline-block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function resetForm() {
+    editingId = null;
+    ["admissionNo", "studentName", "className", "section", "parentPhone"].forEach(function (id) {
+      document.getElementById(id).value = "";
+    });
+    document.getElementById("schoolId").value = "";
+    document.getElementById("sessionId").value = "";
+    document.getElementById("formTitle").textContent = "Add Student";
+    document.getElementById("cancelBtn").style.display = "none";
+  }
+
+  async function saveStudent() {
+    const admissionNo = document.getElementById("admissionNo").value.trim();
+    const studentName = document.getElementById("studentName").value.trim();
+    const schoolId = document.getElementById("schoolId").value;
+    const sessionId = document.getElementById("sessionId").value;
+
+    if (!admissionNo || !studentName) { showMsg("Admission No. and Name are required", "error"); return; }
+    if (!schoolId) { showMsg("Please select a school", "error"); return; }
+    if (!sessionId) { showMsg("Please select an academic session", "error"); return; }
+
+    const params = new URLSearchParams({
+      action: editingId ? "updateStudent" : "addStudent",
+      token: token,
+      admissionNo: admissionNo,
+      studentName: studentName,
+      schoolId: schoolId,
+      className: document.getElementById("className").value.trim(),
+      section: document.getElementById("section").value.trim(),
+      sessionId: sessionId,
+      parentPhone: document.getElementById("parentPhone").value.trim()
+    });
+    if (editingId) params.set("studentId", editingId);
+
+    const res = await fetch(API_URL + "?" + params.toString());
+    const data = await res.json();
+    if (data.success) {
+      showMsg(editingId ? "Student updated." : "Student added.", "success");
+      resetForm();
+      loadStudents();
+    } else {
+      showMsg(data.message || "Save failed.", "error");
+    }
+  }
+
+  async function toggleStatus(id) {
+    const res = await fetch(API_URL + "?action=toggleStudentStatus&token=" + encodeURIComponent(token) + "&studentId=" + encodeURIComponent(id));
+    const data = await res.json();
+    if (data.success) loadStudents(); else showMsg(data.message, "error");
+  }
+
+  loadSchoolsDropdown();
+  loadSessionsDropdown();
+  loadStudents();
+</script>
+
+</body>
+</html>
