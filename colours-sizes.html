@@ -31,6 +31,9 @@
   #msg { grid-column: 1 / -1; font-size: 13px; display: none; }
   #msg.error { color: #c0392b; }
   #msg.success { color: #1e7e34; }
+  nav { max-width: 800px; margin: 16px auto 0; padding: 0 16px; font-size: 13px; }
+  nav a { color: #2c5282; text-decoration: none; margin-right: 16px; }
+  nav a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -39,6 +42,11 @@
   <h1>UniformERP — Colours &amp; Sizes</h1>
   <div><button onclick="logout()">Log Out</button></div>
 </header>
+
+<nav>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="products.html">Products</a>
+</nav>
 
 <div class="container">
   <div id="msg"></div>
