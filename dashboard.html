@@ -13,6 +13,7 @@
     display: flex; justify-content: space-between; align-items: center;
   }
   header h1 { font-size: 18px; margin: 0; }
+  .shop-tag { font-size: 12px; font-weight: 400; color: #b8c4d4; margin-left: 10px; }
   header .user-info { font-size: 13px; }
   header button {
     background: #c0392b; color: white; border: none; padding: 6px 14px;
@@ -38,7 +39,7 @@
 <body>
 
 <header>
-  <h1>UniformERP — Dashboard</h1>
+  <h1>UniformERP — Dashboard<span class="shop-tag">BABA General Store</span></h1>
   <div class="user-info">
     <span id="userLabel"></span>
     <button onclick="logout()">Log Out</button>
