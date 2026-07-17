@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UniformERP - Products</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; }
+  header {
+    background: #1e3a5f; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header button {
+    background: #c0392b; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; margin-left: 12px; font-size: 13px;
+  }
+  .container { max-width: 950px; margin: 24px auto; padding: 0 16px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-grid label { font-size: 12px; font-weight: 600; color: #444; display: block; margin-bottom: 4px; }
+  .form-grid input, .form-grid select {
+    width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;
+  }
+  .btn-primary {
+    background: #2c5282; color: white; border: none; padding: 10px 20px;
+    border-radius: 4px; font-size: 14px; cursor: pointer; margin-top: 12px;
+  }
+  .btn-primary:hover { background: #1e3a5f; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+  th { color: #666; font-weight: 600; }
+  .status-active { color: #1e7e34; font-weight: 600; }
+  .status-inactive { color: #c0392b; font-weight: 600; }
+  .link-btn { background: none; border: none; color: #2c5282; cursor: pointer; font-size: 13px; padding: 0; margin-right: 10px; }
+  #msg { font-size: 13px; margin-top: 10px; display: none; }
+  #msg.error { color: #c0392b; }
+  #msg.success { color: #1e7e34; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UniformERP — Products</h1>
+  <div><button onclick="logout()">Log Out</button></div>
+</header>
+
+<div class="container">
+  <div class="card">
+    <h2 id="formTitle">Add Product</h2>
+    <div class="form-grid">
+      <div><label>Product Name</label><input id="productName" placeholder="e.g. Shirt, Pant, Belt"></div>
+      <div><label>Category</label><input id="category" placeholder="e.g. Shirt / Trouser / Accessory"></div>
+      <div><label>School</label><select id="schoolId"><option value="">-- Select School --</option></select></div>
+      <div><label>Unit</label><input id="unit" value="Piece"></div>
+    </div>
+    <button class="btn-primary" onclick="saveProduct()">Save Product</button>
+    <button class="btn-primary" style="background:#888; display:none;" id="cancelBtn" onclick="resetForm()">Cancel Edit</button>
+    <div id="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>All Products</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Category</th><th>School</th><th>Unit</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="productsBody"><tr><td colspan="6">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
+  const token = localStorage.getItem("uniformerp_token");
+  let editingId = null;
+
+  if (!token) window.location.href = "login.html";
+
+  function logout() { localStorage.clear(); window.location.href = "login.html"; }
+
+  function showMsg(text, type) {
+    const el = document.getElementById("msg");
+    el.textContent = text; el.className = type; el.style.display = "block";
+    setTimeout(function () { el.style.display = "none"; }, 3500);
+  }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  async function loadSchoolsDropdown() {
+    const res = await fetch(API_URL + "?action=listSchools&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    const select = document.getElementById("schoolId");
+    if (!data.success) { showMsg(data.message, "error"); return; }
+    data.data.filter(function (s) { return s.Status === "Active"; }).forEach(function (s) {
+      const opt = document.createElement("option");
+      opt.value = s.SchoolID;
+      opt.textContent = s.SchoolName + " (" + s.Branch + ")";
+      select.appendChild(opt);
+    });
+    if (data.data.length === 0) {
+      showMsg("No schools found — add a school first on the Schools page.", "error");
+    }
+  }
+
+  async function loadProducts() {
+    const res = await fetch(API_URL + "?action=listProducts&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    if (!data.success) { showMsg(data.message, "error"); return; }
+
+    const tbody = document.getElementById("productsBody");
+    tbody.innerHTML = "";
+    if (data.data.length === 0) {
+      tbody.innerHTML = "<tr><td colspan='6'>No products added yet.</td></tr>";
+      return;
+    }
+    data.data.forEach(function (p) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + escapeHtml(p.ProductName) + "</td>" +
+        "<td>" + escapeHtml(p.Category) + "</td>" +
+        "<td>" + escapeHtml(p.SchoolName) + "</td>" +
+        "<td>" + escapeHtml(p.Unit) + "</td>" +
+        "<td class='" + (p.Status === "Active" ? "status-active" : "status-inactive") + "'>" + p.Status + "</td>" +
+        "<td>" +
+          "<button class='link-btn' onclick='editProduct(" + JSON.stringify(p).replace(/'/g, "&apos;") + ")'>Edit</button>" +
+          "<button class='link-btn' onclick=\"toggleStatus('" + p.ProductID + "')\">" + (p.Status === "Active" ? "Deactivate" : "Activate") + "</button>" +
+        "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  function editProduct(p) {
+    editingId = p.ProductID;
+    document.getElementById("productName").value = p.ProductName;
+    document.getElementById("category").value = p.Category;
+    document.getElementById("schoolId").value = p.SchoolID;
+    document.getElementById("unit").value = p.Unit;
+    document.getElementById("formTitle").textContent = "Edit Product";
+    document.getElementById("cancelBtn").style.display = "inline-block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function resetForm() {
+    editingId = null;
+    document.getElementById("productName").value = "";
+    document.getElementById("category").value = "";
+    document.getElementById("schoolId").value = "";
+    document.getElementById("unit").value = "Piece";
+    document.getElementById("formTitle").textContent = "Add Product";
+    document.getElementById("cancelBtn").style.display = "none";
+  }
+
+  async function saveProduct() {
+    const productName = document.getElementById("productName").value.trim();
+    const schoolId = document.getElementById("schoolId").value;
+    if (!productName) { showMsg("Product name is required", "error"); return; }
+    if (!schoolId) { showMsg("Please select a school", "error"); return; }
+
+    const params = new URLSearchParams({
+      action: editingId ? "updateProduct" : "addProduct",
+      token: token,
+      productName: productName,
+      category: document.getElementById("category").value.trim(),
+      schoolId: schoolId,
+      unit: document.getElementById("unit").value.trim() || "Piece"
+    });
+    if (editingId) params.set("productId", editingId);
+
+    const res = await fetch(API_URL + "?" + params.toString());
+    const data = await res.json();
+    if (data.success) {
+      showMsg(editingId ? "Product updated." : "Product added.", "success");
+      resetForm();
+      loadProducts();
+    } else {
+      showMsg(data.message || "Save failed.", "error");
+    }
+  }
+
+  async function toggleStatus(id) {
+    const res = await fetch(API_URL + "?action=toggleProductStatus&token=" + encodeURIComponent(token) + "&productId=" + encodeURIComponent(id));
+    const data = await res.json();
+    if (data.success) loadProducts(); else showMsg(data.message, "error");
+  }
+
+  loadSchoolsDropdown();
+  loadProducts();
+</script>
+
+</body>
+</html>
