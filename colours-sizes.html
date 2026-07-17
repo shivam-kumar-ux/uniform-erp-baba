@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UniformERP - Colours &amp; Sizes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; }
+  header {
+    background: #1e3a5f; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header button {
+    background: #c0392b; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; margin-left: 12px; font-size: 13px;
+  }
+  .container { max-width: 800px; margin: 24px auto; padding: 0 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
+  .add-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .add-row input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+  .add-row button {
+    background: #2c5282; color: white; border: none; padding: 8px 16px;
+    border-radius: 4px; cursor: pointer; font-size: 14px;
+  }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+  li button { background: none; border: none; color: #c0392b; cursor: pointer; font-size: 13px; }
+  #msg { grid-column: 1 / -1; font-size: 13px; display: none; }
+  #msg.error { color: #c0392b; }
+  #msg.success { color: #1e7e34; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UniformERP — Colours &amp; Sizes</h1>
+  <div><button onclick="logout()">Log Out</button></div>
+</header>
+
+<div class="container">
+  <div id="msg"></div>
+
+  <div class="card">
+    <h2>Colours</h2>
+    <div class="add-row">
+      <input id="colourInput" placeholder="e.g. Navy Blue">
+      <button onclick="addColour()">Add</button>
+    </div>
+    <ul id="coloursList"><li>Loading...</li></ul>
+  </div>
+
+  <div class="card">
+    <h2>Sizes</h2>
+    <div class="add-row">
+      <input id="sizeInput" placeholder="e.g. 32">
+      <button onclick="addSize()">Add</button>
+    </div>
+    <ul id="sizesList"><li>Loading...</li></ul>
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
+  const token = localStorage.getItem("uniformerp_token");
+
+  if (!token) window.location.href = "login.html";
+
+  function logout() {
+    localStorage.clear();
+    window.location.href = "login.html";
+  }
+
+  function showMsg(text, type) {
+    const el = document.getElementById("msg");
+    el.textContent = text;
+    el.className = type;
+    el.style.display = "block";
+    setTimeout(function () { el.style.display = "none"; }, 3000);
+  }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  async function loadColours() {
+    const res = await fetch(API_URL + "?action=listColours&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    const list = document.getElementById("coloursList");
+    if (!data.success) { showMsg(data.message, "error"); return; }
+    list.innerHTML = data.data.length === 0 ? "<li>No colours yet.</li>" : "";
+    data.data.forEach(function (c) {
+      const li = document.createElement("li");
+      li.innerHTML = "<span>" + escapeHtml(c.ColourName) + "</span>" +
+        "<button onclick=\"deleteColour('" + c.ColourID + "')\">Remove</button>";
+      list.appendChild(li);
+    });
+  }
+
+  async function loadSizes() {
+    const res = await fetch(API_URL + "?action=listSizes&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    const list = document.getElementById("sizesList");
+    if (!data.success) { showMsg(data.message, "error"); return; }
+    list.innerHTML = data.data.length === 0 ? "<li>No sizes yet.</li>" : "";
+    data.data.forEach(function (s) {
+      const li = document.createElement("li");
+      li.innerHTML = "<span>" + escapeHtml(s.SizeName) + "</span>" +
+        "<button onclick=\"deleteSize('" + s.SizeID + "')\">Remove</button>";
+      list.appendChild(li);
+    });
+  }
+
+  async function addColour() {
+    const val = document.getElementById("colourInput").value.trim();
+    if (!val) return;
+    const res = await fetch(API_URL + "?action=addColour&token=" + encodeURIComponent(token) + "&colourName=" + encodeURIComponent(val));
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById("colourInput").value = "";
+      loadColours();
+    } else {
+      showMsg(data.message, "error");
+    }
+  }
+
+  async function addSize() {
+    const val = document.getElementById("sizeInput").value.trim();
+    if (!val) return;
+    const res = await fetch(API_URL + "?action=addSize&token=" + encodeURIComponent(token) + "&sizeName=" + encodeURIComponent(val));
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById("sizeInput").value = "";
+      loadSizes();
+    } else {
+      showMsg(data.message, "error");
+    }
+  }
+
+  async function deleteColour(id) {
+    const res = await fetch(API_URL + "?action=deleteColour&token=" + encodeURIComponent(token) + "&colourId=" + encodeURIComponent(id));
+    const data = await res.json();
+    if (data.success) loadColours(); else showMsg(data.message, "error");
+  }
+
+  async function deleteSize(id) {
+    const res = await fetch(API_URL + "?action=deleteSize&token=" + encodeURIComponent(token) + "&sizeId=" + encodeURIComponent(id));
+    const data = await res.json();
+    if (data.success) loadSizes(); else showMsg(data.message, "error");
+  }
+
+  loadColours();
+  loadSizes();
+</script>
+
+</body>
+</html>
