@@ -57,8 +57,8 @@
   <a href="schools.html">Schools</a>
   <a href="suppliers.html">Suppliers</a>
   <a href="colours-sizes.html">Colours/Sizes</a>
-  <a href="users.html">User Management</a>
-  <a href="logs.html">Audit Logs</a>
+  <a href="users.html" id="navUsers">User Management</a>
+  <a href="logs.html" id="navLogs">Audit Logs</a>
 </nav>
 
 <div class="container">
@@ -95,6 +95,12 @@
 
   document.getElementById("userLabel").textContent =
     (localStorage.getItem("uniformerp_name") || "") + " (" + (localStorage.getItem("uniformerp_role") || "") + ")";
+
+  // Hide Owner-only pages from Staff so they don't hit permission errors
+  if (localStorage.getItem("uniformerp_role") !== "Owner") {
+    document.getElementById("navUsers").style.display = "none";
+    document.getElementById("navLogs").style.display = "none";
+  }
 
   function logout() { localStorage.clear(); window.location.href = "login.html"; }
 
