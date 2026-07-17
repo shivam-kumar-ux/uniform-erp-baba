@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UniformERP - Purchase Entry</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; }
+  header {
+    background: #1e3a5f; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header button {
+    background: #c0392b; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; margin-left: 12px; font-size: 13px;
+  }
+  .container { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .form-grid label { font-size: 12px; font-weight: 600; color: #444; display: block; margin-bottom: 4px; }
+  .form-grid input, .form-grid select {
+    width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;
+  }
+  .btn-primary {
+    background: #2c5282; color: white; border: none; padding: 10px 20px;
+    border-radius: 4px; font-size: 14px; cursor: pointer; margin-top: 12px;
+  }
+  .btn-primary:hover { background: #1e3a5f; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+  th { color: #666; font-weight: 600; }
+  #msg { font-size: 13px; margin-top: 10px; display: none; }
+  #msg.error { color: #c0392b; }
+  #msg.success { color: #1e7e34; }
+  nav { max-width: 1000px; margin: 16px auto 0; padding: 0 16px; font-size: 13px; }
+  nav a { color: #2c5282; text-decoration: none; margin-right: 16px; }
+  nav a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UniformERP — Purchase Entry</h1>
+  <div><button onclick="logout()">Log Out</button></div>
+</header>
+
+<nav>
+  <a href="schools.html">Schools</a>
+  <a href="products.html">Products</a>
+  <a href="students.html">Students</a>
+  <a href="colours-sizes.html">Colours/Sizes</a>
+  <a href="suppliers.html">Suppliers</a>
+  <a href="inventory.html">Inventory</a>
+</nav>
+
+<div class="container">
+  <div class="card">
+    <h2>Record New Purchase</h2>
+    <div class="form-grid">
+      <div><label>Product</label><select id="productId"><option value="">-- Select --</option></select></div>
+      <div><label>Colour</label><select id="colourId"><option value="">-- Select --</option></select></div>
+      <div><label>Size</label><select id="sizeId"><option value="">-- Select --</option></select></div>
+      <div><label>Supplier</label><select id="supplierId"><option value="">-- Select --</option></select></div>
+      <div><label>Branch</label>
+        <select id="branch">
+          <option value="Shahpur">Shahpur</option>
+          <option value="Telaiya Dam">Telaiya Dam</option>
+        </select>
+      </div>
+      <div><label>Purchase Date</label><input id="purchaseDate" type="date"></div>
+      <div><label>Quantity</label><input id="qty" type="number" min="1"></div>
+      <div><label>Cost Price (per unit)</label><input id="costPrice" type="number" min="0" step="0.01"></div>
+    </div>
+    <button class="btn-primary" onclick="savePurchase()">Save Purchase</button>
+    <div id="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Recent Purchases</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Product</th><th>Colour</th><th>Size</th><th>Supplier</th><th>Branch</th><th>Qty</th><th>Remaining</th><th>Cost/Unit</th></tr></thead>
+      <tbody id="purchasesBody"><tr><td colspan="9">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
+  const token = localStorage.getItem("uniformerp_token");
+
+  if (!token) window.location.href = "login.html";
+
+  document.getElementById("purchaseDate").valueAsDate = new Date();
+
+  function logout() { localStorage.clear(); window.location.href = "login.html"; }
+
+  function showMsg(text, type) {
+    const el = document.getElementById("msg");
+    el.textContent = text; el.className = type; el.style.display = "block";
+    setTimeout(function () { el.style.display = "none"; }, 3500);
+  }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  async function loadDropdown(action, selectId, valueField, labelField, filterActive) {
+    const res = await fetch(API_URL + "?action=" + action + "&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    if (!data.success) { showMsg(data.message, "error"); return; }
+    const select = document.getElementById(selectId);
+    let items = data.data;
+    if (filterActive) items = items.filter(function (i) { return i.Status === "Active"; });
+    items.forEach(function (item) {
+      const opt = document.createElement("option");
+      opt.value = item[valueField];
+      opt.textContent = item[labelField];
+      select.appendChild(opt);
+    });
+  }
+
+  async function loadPurchases() {
+    const res = await fetch(API_URL + "?action=listPurchases&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    if (!data.success) { showMsg(data.message, "error"); return; }
+
+    const tbody = document.getElementById("purchasesBody");
+    tbody.innerHTML = "";
+    if (data.data.length === 0) {
+      tbody.innerHTML = "<tr><td colspan='9'>No purchases recorded yet.</td></tr>";
+      return;
+    }
+    data.data.slice(0, 30).forEach(function (b) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + escapeHtml(b.PurchaseDate) + "</td>" +
+        "<td>" + escapeHtml(b.ProductName) + "</td>" +
+        "<td>" + escapeHtml(b.ColourName) + "</td>" +
+        "<td>" + escapeHtml(b.SizeName) + "</td>" +
+        "<td>" + escapeHtml(b.SupplierName) + "</td>" +
+        "<td>" + escapeHtml(b.Branch) + "</td>" +
+        "<td>" + escapeHtml(b.QtyPurchased) + "</td>" +
+        "<td>" + escapeHtml(b.QtyRemaining) + "</td>" +
+        "<td>₹" + escapeHtml(b.CostPrice) + "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function savePurchase() {
+    const productId = document.getElementById("productId").value;
+    const colourId = document.getElementById("colourId").value;
+    const sizeId = document.getElementById("sizeId").value;
+    const supplierId = document.getElementById("supplierId").value;
+    const qty = document.getElementById("qty").value;
+    const costPrice = document.getElementById("costPrice").value;
+
+    if (!productId || !colourId || !sizeId || !supplierId) { showMsg("Please fill all dropdowns", "error"); return; }
+    if (!qty || Number(qty) <= 0) { showMsg("Enter a valid quantity", "error"); return; }
+    if (!costPrice) { showMsg("Enter a cost price", "error"); return; }
+
+    const params = new URLSearchParams({
+      action: "addPurchase",
+      token: token,
+      productId: productId,
+      colourId: colourId,
+      sizeId: sizeId,
+      supplierId: supplierId,
+      branch: document.getElementById("branch").value,
+      purchaseDate: document.getElementById("purchaseDate").value,
+      qty: qty,
+      costPrice: costPrice
+    });
+
+    const res = await fetch(API_URL + "?" + params.toString());
+    const data = await res.json();
+    if (data.success) {
+      showMsg("Purchase recorded.", "success");
+      document.getElementById("qty").value = "";
+      document.getElementById("costPrice").value = "";
+      loadPurchases();
+    } else {
+      showMsg(data.message || "Save failed.", "error");
+    }
+  }
+
+  loadDropdown("listProducts", "productId", "ProductID", "ProductName", true);
+  loadDropdown("listColours", "colourId", "ColourID", "ColourName", false);
+  loadDropdown("listSizes", "sizeId", "SizeID", "SizeName", false);
+  loadDropdown("listSuppliers", "supplierId", "SupplierID", "SupplierName", true);
+  loadPurchases();
+</script>
+
+</body>
+</html>
