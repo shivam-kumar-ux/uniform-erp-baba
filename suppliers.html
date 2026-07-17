@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UniformERP - Suppliers</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; }
+  header {
+    background: #1e3a5f; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header button {
+    background: #c0392b; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; margin-left: 12px; font-size: 13px;
+  }
+  .container { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-grid label { font-size: 12px; font-weight: 600; color: #444; display: block; margin-bottom: 4px; }
+  .form-grid input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+  .form-grid .full { grid-column: 1 / -1; }
+  .btn-primary {
+    background: #2c5282; color: white; border: none; padding: 10px 20px;
+    border-radius: 4px; font-size: 14px; cursor: pointer; margin-top: 12px;
+  }
+  .btn-primary:hover { background: #1e3a5f; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+  th { color: #666; font-weight: 600; }
+  .status-active { color: #1e7e34; font-weight: 600; }
+  .status-inactive { color: #c0392b; font-weight: 600; }
+  .link-btn { background: none; border: none; color: #2c5282; cursor: pointer; font-size: 13px; padding: 0; margin-right: 10px; }
+  #msg { font-size: 13px; margin-top: 10px; display: none; }
+  #msg.error { color: #c0392b; }
+  #msg.success { color: #1e7e34; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UniformERP — Suppliers</h1>
+  <div><button onclick="logout()">Log Out</button></div>
+</header>
+
+<div class="container">
+  <div class="card">
+    <h2 id="formTitle">Add Supplier</h2>
+    <div class="form-grid">
+      <div><label>Supplier Name</label><input id="supplierName" required></div>
+      <div><label>Phone</label><input id="phone"></div>
+      <div class="full"><label>Address</label><input id="address"></div>
+    </div>
+    <button class="btn-primary" onclick="saveSupplier()">Save Supplier</button>
+    <button class="btn-primary" style="background:#888; display:none;" id="cancelBtn" onclick="resetForm()">Cancel Edit</button>
+    <div id="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>All Suppliers</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Phone</th><th>Address</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="suppliersBody"><tr><td colspan="5">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
+  const token = localStorage.getItem("uniformerp_token");
+  let editingId = null;
+
+  if (!token) window.location.href = "login.html";
+
+  function logout() { localStorage.clear(); window.location.href = "login.html"; }
+
+  function showMsg(text, type) {
+    const el = document.getElementById("msg");
+    el.textContent = text; el.className = type; el.style.display = "block";
+    setTimeout(function () { el.style.display = "none"; }, 3500);
+  }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  async function loadSuppliers() {
+    const res = await fetch(API_URL + "?action=listSuppliers&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    if (!data.success) { showMsg(data.message, "error"); return; }
+
+    const tbody = document.getElementById("suppliersBody");
+    tbody.innerHTML = "";
+    if (data.data.length === 0) {
+      tbody.innerHTML = "<tr><td colspan='5'>No suppliers added yet.</td></tr>";
+      return;
+    }
+    data.data.forEach(function (s) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + escapeHtml(s.SupplierName) + "</td>" +
+        "<td>" + escapeHtml(s.Phone) + "</td>" +
+        "<td>" + escapeHtml(s.Address) + "</td>" +
+        "<td class='" + (s.Status === "Active" ? "status-active" : "status-inactive") + "'>" + s.Status + "</td>" +
+        "<td>" +
+          "<button class='link-btn' onclick='editSupplier(" + JSON.stringify(s).replace(/'/g, "&apos;") + ")'>Edit</button>" +
+          "<button class='link-btn' onclick=\"toggleStatus('" + s.SupplierID + "')\">" + (s.Status === "Active" ? "Deactivate" : "Activate") + "</button>" +
+        "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  function editSupplier(s) {
+    editingId = s.SupplierID;
+    document.getElementById("supplierName").value = s.SupplierName;
+    document.getElementById("phone").value = s.Phone;
+    document.getElementById("address").value = s.Address;
+    document.getElementById("formTitle").textContent = "Edit Supplier";
+    document.getElementById("cancelBtn").style.display = "inline-block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function resetForm() {
+    editingId = null;
+    ["supplierName", "phone", "address"].forEach(function (id) { document.getElementById(id).value = ""; });
+    document.getElementById("formTitle").textContent = "Add Supplier";
+    document.getElementById("cancelBtn").style.display = "none";
+  }
+
+  async function saveSupplier() {
+    const supplierName = document.getElementById("supplierName").value.trim();
+    if (!supplierName) { showMsg("Supplier name is required", "error"); return; }
+
+    const params = new URLSearchParams({
+      action: editingId ? "updateSupplier" : "addSupplier",
+      token: token,
+      supplierName: supplierName,
+      phone: document.getElementById("phone").value.trim(),
+      address: document.getElementById("address").value.trim()
+    });
+    if (editingId) params.set("supplierId", editingId);
+
+    const res = await fetch(API_URL + "?" + params.toString());
+    const data = await res.json();
+    if (data.success) {
+      showMsg(editingId ? "Supplier updated." : "Supplier added.", "success");
+      resetForm();
+      loadSuppliers();
+    } else {
+      showMsg(data.message || "Save failed.", "error");
+    }
+  }
+
+  async function toggleStatus(id) {
+    const res = await fetch(API_URL + "?action=toggleSupplierStatus&token=" + encodeURIComponent(token) + "&supplierId=" + encodeURIComponent(id));
+    const data = await res.json();
+    if (data.success) loadSuppliers(); else showMsg(data.message, "error");
+  }
+
+  loadSuppliers();
+</script>
+
+</body>
+</html>
