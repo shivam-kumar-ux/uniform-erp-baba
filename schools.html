@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UniformERP - Schools</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; }
+  header {
+    background: #1e3a5f; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header .user-info { font-size: 13px; }
+  header button {
+    background: #c0392b; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; margin-left: 12px; font-size: 13px;
+  }
+  .container { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-grid label { font-size: 12px; font-weight: 600; color: #444; display: block; margin-bottom: 4px; }
+  .form-grid input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+  .form-grid .full { grid-column: 1 / -1; }
+  .btn-primary {
+    background: #2c5282; color: white; border: none; padding: 10px 20px;
+    border-radius: 4px; font-size: 14px; cursor: pointer; margin-top: 12px;
+  }
+  .btn-primary:hover { background: #1e3a5f; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+  th { color: #666; font-weight: 600; }
+  .status-active { color: #1e7e34; font-weight: 600; }
+  .status-inactive { color: #c0392b; font-weight: 600; }
+  .link-btn { background: none; border: none; color: #2c5282; cursor: pointer; font-size: 13px; padding: 0; margin-right: 10px; }
+  #msg { font-size: 13px; margin-top: 10px; display: none; }
+  #msg.error { color: #c0392b; }
+  #msg.success { color: #1e7e34; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UniformERP — Schools</h1>
+  <div class="user-info">
+    <span id="userLabel"></span>
+    <button onclick="logout()">Log Out</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="card" id="formCard">
+    <h2 id="formTitle">Add School</h2>
+    <div class="form-grid">
+      <div><label>School Name</label><input id="schoolName" required></div>
+      <div><label>Branch</label><input id="branch" placeholder="Shahpur / Telaiya Dam"></div>
+      <div><label>Contact Person</label><input id="contactPerson"></div>
+      <div><label>Phone</label><input id="phone"></div>
+      <div class="full"><label>Address</label><input id="address"></div>
+    </div>
+    <button class="btn-primary" onclick="saveSchool()">Save School</button>
+    <button class="btn-primary" style="background:#888; display:none;" id="cancelBtn" onclick="resetForm()">Cancel Edit</button>
+    <div id="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>All Schools</h2>
+    <table id="schoolsTable">
+      <thead>
+        <tr><th>Name</th><th>Branch</th><th>Contact</th><th>Phone</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="schoolsBody">
+        <tr><td colspan="6">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
+  const token = localStorage.getItem("uniformerp_token");
+  let editingId = null;
+
+  if (!token) {
+    window.location.href = "login.html";
+  }
+
+  document.getElementById("userLabel").textContent =
+    (localStorage.getItem("uniformerp_name") || "") + " (" + (localStorage.getItem("uniformerp_role") || "") + ")";
+
+  function logout() {
+    localStorage.clear();
+    window.location.href = "login.html";
+  }
+
+  function showMsg(text, type) {
+    const el = document.getElementById("msg");
+    el.textContent = text;
+    el.className = type;
+    el.style.display = "block";
+    setTimeout(function () { el.style.display = "none"; }, 3500);
+  }
+
+  async function loadSchools() {
+    const url = API_URL + "?action=listSchools&token=" + encodeURIComponent(token);
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (!data.success) {
+      if (data.message && data.message.indexOf("expired") !== -1) {
+        alert("Session expired. Please log in again.");
+        logout();
+        return;
+      }
+      showMsg(data.message || "Failed to load schools", "error");
+      return;
+    }
+
+    const tbody = document.getElementById("schoolsBody");
+    tbody.innerHTML = "";
+    if (data.data.length === 0) {
+      tbody.innerHTML = "<tr><td colspan='6'>No schools added yet.</td></tr>";
+      return;
+    }
+    data.data.forEach(function (s) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + escapeHtml(s.SchoolName) + "</td>" +
+        "<td>" + escapeHtml(s.Branch) + "</td>" +
+        "<td>" + escapeHtml(s.ContactPerson) + "</td>" +
+        "<td>" + escapeHtml(s.Phone) + "</td>" +
+        "<td class='" + (s.Status === "Active" ? "status-active" : "status-inactive") + "'>" + s.Status + "</td>" +
+        "<td>" +
+          "<button class='link-btn' onclick='editSchool(" + JSON.stringify(s).replace(/'/g, "&apos;") + ")'>Edit</button>" +
+          "<button class='link-btn' onclick=\"toggleStatus('" + s.SchoolID + "')\">" + (s.Status === "Active" ? "Deactivate" : "Activate") + "</button>" +
+        "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  function escapeHtml(str) {
+    if (str === undefined || str === null) return "";
+    return String(str).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function editSchool(s) {
+    editingId = s.SchoolID;
+    document.getElementById("schoolName").value = s.SchoolName;
+    document.getElementById("branch").value = s.Branch;
+    document.getElementById("contactPerson").value = s.ContactPerson;
+    document.getElementById("phone").value = s.Phone;
+    document.getElementById("address").value = s.Address;
+    document.getElementById("formTitle").textContent = "Edit School";
+    document.getElementById("cancelBtn").style.display = "inline-block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function resetForm() {
+    editingId = null;
+    ["schoolName", "branch", "contactPerson", "phone", "address"].forEach(function (id) {
+      document.getElementById(id).value = "";
+    });
+    document.getElementById("formTitle").textContent = "Add School";
+    document.getElementById("cancelBtn").style.display = "none";
+  }
+
+  async function saveSchool() {
+    const schoolName = document.getElementById("schoolName").value.trim();
+    if (!schoolName) { showMsg("School name is required", "error"); return; }
+
+    const params = new URLSearchParams({
+      action: editingId ? "updateSchool" : "addSchool",
+      token: token,
+      schoolName: schoolName,
+      branch: document.getElementById("branch").value.trim(),
+      contactPerson: document.getElementById("contactPerson").value.trim(),
+      phone: document.getElementById("phone").value.trim(),
+      address: document.getElementById("address").value.trim()
+    });
+    if (editingId) params.set("schoolId", editingId);
+
+    const res = await fetch(API_URL + "?" + params.toString());
+    const data = await res.json();
+
+    if (data.success) {
+      showMsg(editingId ? "School updated." : "School added.", "success");
+      resetForm();
+      loadSchools();
+    } else {
+      showMsg(data.message || "Save failed.", "error");
+    }
+  }
+
+  async function toggleStatus(schoolId) {
+    const url = API_URL + "?action=toggleSchoolStatus&token=" + encodeURIComponent(token) + "&schoolId=" + encodeURIComponent(schoolId);
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.success) {
+      loadSchools();
+    } else {
+      showMsg(data.message || "Failed to update status.", "error");
+    }
+  }
+
+  loadSchools();
+</script>
+
+</body>
+</html>
