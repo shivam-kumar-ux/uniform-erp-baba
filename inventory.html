@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UniformERP - Inventory</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; }
+  header {
+    background: #1e3a5f; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header button {
+    background: #c0392b; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; margin-left: 12px; font-size: 13px;
+  }
+  nav { max-width: 1000px; margin: 16px auto 0; padding: 0 16px; font-size: 13px; }
+  nav a { color: #2c5282; text-decoration: none; margin-right: 16px; }
+  nav a:hover { text-decoration: underline; }
+  .container { max-width: 1000px; margin: 16px auto 24px; padding: 0 16px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
+  .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .toolbar select, .toolbar input {
+    padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;
+  }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .badge-low { background: #fdecea; color: #c0392b; }
+  .badge-ok { background: #e8f5e9; color: #1e7e34; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+  th { color: #666; font-weight: 600; cursor: pointer; }
+  tr.low-row { background: #fff8f7; }
+  .summary { display: flex; gap: 20px; margin-bottom: 16px; }
+  .summary-box { background: #f4f6f8; border-radius: 6px; padding: 10px 16px; font-size: 13px; }
+  .summary-box strong { display: block; font-size: 18px; color: #1e3a5f; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UniformERP — Inventory</h1>
+  <div><button onclick="logout()">Log Out</button></div>
+</header>
+
+<nav>
+  <a href="schools.html">Schools</a>
+  <a href="products.html">Products</a>
+  <a href="students.html">Students</a>
+  <a href="colours-sizes.html">Colours/Sizes</a>
+  <a href="suppliers.html">Suppliers</a>
+  <a href="purchase.html">Purchase Entry</a>
+</nav>
+
+<div class="container">
+  <div class="card">
+    <h2>Current Stock</h2>
+    <div class="summary">
+      <div class="summary-box">Total SKUs<strong id="totalSkus">-</strong></div>
+      <div class="summary-box">Low Stock Items<strong id="lowStockCount">-</strong></div>
+      <div class="summary-box">Total Units in Stock<strong id="totalUnits">-</strong></div>
+    </div>
+    <div class="toolbar">
+      <select id="branchFilter" onchange="loadInventory()">
+        <option value="">All Branches</option>
+        <option value="Shahpur">Shahpur</option>
+        <option value="Telaiya Dam">Telaiya Dam</option>
+      </select>
+      <input id="searchBox" placeholder="Search product name..." oninput="renderTable()">
+      <label style="font-size:13px;"><input type="checkbox" id="lowOnly" onchange="renderTable()"> Show low stock only</label>
+    </div>
+    <table>
+      <thead><tr><th>Product</th><th>Colour</th><th>Size</th><th>Branch</th><th>Stock</th><th>Status</th></tr></thead>
+      <tbody id="inventoryBody"><tr><td colspan="6">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
+  const token = localStorage.getItem("uniformerp_token");
+  let allInventory = [];
+
+  if (!token) window.location.href = "login.html";
+
+  function logout() { localStorage.clear(); window.location.href = "login.html"; }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  async function loadInventory() {
+    const branch = document.getElementById("branchFilter").value;
+    const url = API_URL + "?action=listInventory&token=" + encodeURIComponent(token) +
+      (branch ? "&branch=" + encodeURIComponent(branch) : "");
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.success) {
+      document.getElementById("inventoryBody").innerHTML = "<tr><td colspan='6'>" + escapeHtml(data.message) + "</td></tr>";
+      return;
+    }
+    allInventory = data.data;
+    renderTable();
+  }
+
+  function renderTable() {
+    const search = document.getElementById("searchBox").value.trim().toLowerCase();
+    const lowOnly = document.getElementById("lowOnly").checked;
+
+    let rows = allInventory.filter(function (i) {
+      return String(i.ProductName).toLowerCase().indexOf(search) !== -1;
+    });
+    if (lowOnly) rows = rows.filter(function (i) { return i.LowStock; });
+
+    const tbody = document.getElementById("inventoryBody");
+    tbody.innerHTML = "";
+    if (rows.length === 0) {
+      tbody.innerHTML = "<tr><td colspan='6'>No matching stock records.</td></tr>";
+    } else {
+      rows.forEach(function (i) {
+        const tr = document.createElement("tr");
+        if (i.LowStock) tr.className = "low-row";
+        tr.innerHTML =
+          "<td>" + escapeHtml(i.ProductName) + "</td>" +
+          "<td>" + escapeHtml(i.ColourName) + "</td>" +
+          "<td>" + escapeHtml(i.SizeName) + "</td>" +
+          "<td>" + escapeHtml(i.Branch) + "</td>" +
+          "<td>" + escapeHtml(i.CurrentStock) + "</td>" +
+          "<td><span class='badge " + (i.LowStock ? "badge-low" : "badge-ok") + "'>" + (i.LowStock ? "Low Stock" : "OK") + "</span></td>";
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Summary stats (based on the currently loaded branch filter, not the search box)
+    document.getElementById("totalSkus").textContent = allInventory.length;
+    document.getElementById("lowStockCount").textContent = allInventory.filter(function (i) { return i.LowStock; }).length;
+    document.getElementById("totalUnits").textContent = allInventory.reduce(function (sum, i) { return sum + Number(i.CurrentStock || 0); }, 0);
+  }
+
+  loadInventory();
+</script>
+
+</body>
+</html>
