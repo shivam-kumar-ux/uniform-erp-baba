@@ -45,6 +45,15 @@
   #msg.error { color: #c0392b; }
   #msg.success { color: #1e7e34; }
   .stock-note { font-size: 11px; color: #888; margin-top: 2px; }
+  .link-toggle {
+    background: none; border: none; color: #2c5282; cursor: pointer;
+    font-size: 13px; padding: 0; margin-top: 12px; font-weight: 600;
+  }
+  .link-toggle:hover { text-decoration: underline; }
+  .add-student-form {
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee;
+  }
+  .add-student-form label { font-size: 11px; }
 </style>
 </head>
 <body>
@@ -70,6 +79,21 @@
       <input id="studentSearch" placeholder="Search by admission no. or name..." oninput="searchStudents()">
       <div id="studentResults"></div>
       <div id="studentSelected" class="student-selected" style="display:none;"></div>
+
+      <button type="button" class="link-toggle" onclick="toggleAddStudent()" id="addStudentToggleBtn">+ Add New Student</button>
+      <div id="addStudentForm" class="add-student-form" style="display:none;">
+        <div class="item-grid" style="grid-template-columns: 1fr 1fr;">
+          <div><label>Admission No.</label><input id="newAdmissionNo"></div>
+          <div><label>Student Name</label><input id="newStudentName"></div>
+          <div><label>School</label><select id="newSchoolId"><option value="">-- Select --</option></select></div>
+          <div><label>Academic Session</label><select id="newSessionId"><option value="">-- Select --</option></select></div>
+          <div><label>Class</label><input id="newClassName" placeholder="e.g. 6"></div>
+          <div><label>Section</label><input id="newSection" placeholder="e.g. A"></div>
+          <div><label>Parent Phone</label><input id="newParentPhone"></div>
+        </div>
+        <button class="btn-add" onclick="saveNewStudent()">Save Student</button>
+        <div id="addStudentMsg" style="font-size:12px; margin-top:6px; display:none;"></div>
+      </div>
     </div>
 
     <div class="card">
@@ -175,6 +199,94 @@
   function clearStudent() {
     selectedStudent = null;
     document.getElementById("studentSelected").style.display = "none";
+  }
+
+  function toggleAddStudent() {
+    const form = document.getElementById("addStudentForm");
+    const isHidden = form.style.display === "none";
+    form.style.display = isHidden ? "block" : "none";
+    document.getElementById("addStudentToggleBtn").textContent = isHidden ? "− Cancel Add Student" : "+ Add New Student";
+  }
+
+  function showAddStudentMsg(text, isError) {
+    const el = document.getElementById("addStudentMsg");
+    el.textContent = text;
+    el.style.color = isError ? "#c0392b" : "#1e7e34";
+    el.style.display = "block";
+    setTimeout(function () { el.style.display = "none"; }, 4000);
+  }
+
+  async function loadNewStudentDropdowns() {
+    const schoolRes = await fetch(API_URL + "?action=listSchools&token=" + encodeURIComponent(token));
+    const schoolData = await schoolRes.json();
+    if (schoolData.success) {
+      const select = document.getElementById("newSchoolId");
+      schoolData.data.filter(function (s) { return s.Status === "Active"; }).forEach(function (s) {
+        const opt = document.createElement("option");
+        opt.value = s.SchoolID;
+        opt.textContent = s.SchoolName + " (" + s.Branch + ")";
+        select.appendChild(opt);
+      });
+    }
+
+    const sessionRes = await fetch(API_URL + "?action=listSessions&token=" + encodeURIComponent(token));
+    const sessionData = await sessionRes.json();
+    if (sessionData.success) {
+      const select = document.getElementById("newSessionId");
+      sessionData.data.forEach(function (s) {
+        const opt = document.createElement("option");
+        opt.value = s.SessionID;
+        opt.textContent = s.SessionName;
+        select.appendChild(opt);
+      });
+    }
+  }
+
+  async function saveNewStudent() {
+    const admissionNo = document.getElementById("newAdmissionNo").value.trim();
+    const studentName = document.getElementById("newStudentName").value.trim();
+    const schoolId = document.getElementById("newSchoolId").value;
+    const sessionId = document.getElementById("newSessionId").value;
+
+    if (!admissionNo || !studentName) { showAddStudentMsg("Admission No. and Name are required", true); return; }
+    if (!schoolId) { showAddStudentMsg("Please select a school", true); return; }
+    if (!sessionId) { showAddStudentMsg("Please select an academic session", true); return; }
+
+    const params = new URLSearchParams({
+      action: "addStudent",
+      token: token,
+      admissionNo: admissionNo,
+      studentName: studentName,
+      schoolId: schoolId,
+      className: document.getElementById("newClassName").value.trim(),
+      section: document.getElementById("newSection").value.trim(),
+      sessionId: sessionId,
+      parentPhone: document.getElementById("newParentPhone").value.trim()
+    });
+
+    const res = await fetch(API_URL + "?" + params.toString());
+    const data = await res.json();
+    if (data.success) {
+      showAddStudentMsg("Student added and selected for this bill.", false);
+      // Auto-select the newly created student so billing can continue immediately
+      selectStudent({
+        StudentID: data.id,
+        StudentName: studentName,
+        AdmissionNo: admissionNo,
+        SchoolName: document.getElementById("newSchoolId").selectedOptions[0].textContent,
+        ClassName: document.getElementById("newClassName").value.trim(),
+        Section: document.getElementById("newSection").value.trim()
+      });
+      // Reset and collapse the form
+      ["newAdmissionNo", "newStudentName", "newClassName", "newSection", "newParentPhone"].forEach(function (id) {
+        document.getElementById(id).value = "";
+      });
+      document.getElementById("newSchoolId").value = "";
+      document.getElementById("newSessionId").value = "";
+      toggleAddStudent();
+    } else {
+      showAddStudentMsg(data.message || "Failed to add student.", true);
+    }
   }
 
   async function loadDropdown(action, selectId, valueField, labelField, filterActive) {
@@ -316,6 +428,7 @@
   loadDropdown("listColours", "itemColour", "ColourID", "ColourName", false);
   loadDropdown("listSizes", "itemSize", "SizeID", "SizeName", false);
   loadInventory();
+  loadNewStudentDropdowns();
 </script>
 
 </body>
