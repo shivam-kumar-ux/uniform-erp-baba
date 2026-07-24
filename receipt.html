@@ -41,13 +41,31 @@
   .actions { text-align: center; margin-top: 20px; }
   .btn-primary {
     background: #2c5282; color: white; border: none; padding: 10px 24px;
-    border-radius: 4px; font-size: 14px; cursor: pointer; margin: 0 6px;
+    border-radius: 4px; font-size: 14px; cursor: pointer; margin: 6px;
   }
+  .btn-whatsapp { background: #1e7e34; }
+  .btn-whatsapp:disabled { background: #999; cursor: not-allowed; }
   .footer-note { text-align: center; font-size: 12px; color: #999; margin-top: 20px; }
+  .phone-note { text-align: center; font-size: 12px; color: #999; margin-top: 4px; }
+
+  /* Print-only duplicate-copy layout, hidden on screen */
+  #printCopies { display: none; }
+  .copy-label {
+    text-align: center; font-weight: 700; font-size: 11px; color: #666;
+    text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;
+  }
+  .cut-line {
+    text-align: center; font-size: 10px; color: #999; margin: 10px 0;
+    border-top: 1px dashed #999; padding-top: 4px;
+  }
+  .print-copy { padding: 14px 0; }
 
   @media print {
     header, nav, .actions { display: none; }
     body { background: white; }
+    .container { max-width: 100%; margin: 0; padding: 0; }
+    #screenView { display: none; }
+    #printCopies { display: block; }
     .receipt-card { box-shadow: none; padding: 0; }
   }
 </style>
@@ -65,23 +83,31 @@
 </nav>
 
 <div class="container">
-  <div class="receipt-card" id="receiptCard">
-    <div class="shop-header">
-      <h2>BABA General Store</h2>
-      <p>Uniform Shop — Shahpur &amp; Telaiya Dam</p>
+  <div id="screenView">
+    <div class="receipt-card" id="receiptCard">
+      <div class="shop-header">
+        <h2>BABA General Store</h2>
+        <p>Uniform Shop — Shahpur &amp; Telaiya Dam</p>
+      </div>
+      <div id="content">Loading receipt...</div>
     </div>
-    <div id="content">Loading receipt...</div>
   </div>
 
+  <!-- Print-only: two copies stacked on one page, split by a cut line -->
+  <div id="printCopies"></div>
+
   <div class="actions">
-    <button class="btn-primary" onclick="window.print()">Print Receipt</button>
+    <button class="btn-primary" onclick="window.print()">Print Receipt (2 Copies)</button>
+    <button class="btn-primary btn-whatsapp" id="whatsappBtn" onclick="sendWhatsApp()" disabled>Send on WhatsApp</button>
     <button class="btn-primary" style="background:#555;" onclick="window.location.href='billing.html'">New Bill</button>
   </div>
+  <div class="phone-note" id="phoneNote"></div>
 </div>
 
 <script>
   const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
   const token = localStorage.getItem("uniformerp_token");
+  let currentBill = null, currentStudent = null, currentItems = null;
 
   if (!token) window.location.href = "login.html";
 
@@ -98,25 +124,8 @@
     return params.get("billId") || localStorage.getItem("lastBillId");
   }
 
-  async function loadReceipt() {
-    const billId = getBillIdFromUrl();
-    if (!billId) {
-      document.getElementById("content").innerHTML = "<p>No bill specified.</p>";
-      return;
-    }
-
-    const res = await fetch(API_URL + "?action=getBillDetails&token=" + encodeURIComponent(token) + "&billId=" + encodeURIComponent(billId));
-    const data = await res.json();
-
-    if (!data.success) {
-      document.getElementById("content").innerHTML = "<p>" + escapeHtml(data.message) + "</p>";
-      return;
-    }
-
-    const bill = data.data.bill;
-    const student = data.data.student;
-    const items = data.data.items;
-
+  /** Builds the inner HTML for one self-contained receipt (shop header + details), reused for both screen and print copies. */
+  function buildReceiptHtml(bill, student, items, copyLabel) {
     let itemsHtml = "";
     items.forEach(function (it) {
       itemsHtml +=
@@ -130,7 +139,12 @@
 
     const billDate = new Date(bill.BillDate).toLocaleDateString();
 
-    document.getElementById("content").innerHTML =
+    return (
+      (copyLabel ? "<div class='copy-label'>" + escapeHtml(copyLabel) + "</div>" : "") +
+      "<div class='shop-header'>" +
+        "<h2>BABA General Store</h2>" +
+        "<p>Uniform Shop — Shahpur &amp; Telaiya Dam</p>" +
+      "</div>" +
       "<div class='meta-row'>" +
         "<span>Bill No: <strong>" + escapeHtml(bill.BillNo) + "</strong></span>" +
         "<span>Date: " + billDate + "</span>" +
@@ -152,7 +166,81 @@
       "<div style='text-align:center; margin-top:14px;'>" +
         "<span class='status-tag status-" + bill.Status + "'>" + bill.Status + "</span>" +
       "</div>" +
-      "<div class='footer-note'>Thank you for shopping with us — BABA General Store</div>";
+      "<div class='footer-note'>Thank you for shopping with us — BABA General Store</div>"
+    );
+  }
+
+  async function loadReceipt() {
+    const billId = getBillIdFromUrl();
+    if (!billId) {
+      document.getElementById("content").innerHTML = "<p>No bill specified.</p>";
+      return;
+    }
+
+    const res = await fetch(API_URL + "?action=getBillDetails&token=" + encodeURIComponent(token) + "&billId=" + encodeURIComponent(billId));
+    const data = await res.json();
+
+    if (!data.success) {
+      document.getElementById("content").innerHTML = "<p>" + escapeHtml(data.message) + "</p>";
+      return;
+    }
+
+    currentBill = data.data.bill;
+    currentStudent = data.data.student;
+    currentItems = data.data.items;
+
+    // Screen view: one copy, no label
+    document.getElementById("content").innerHTML = buildReceiptHtml(currentBill, currentStudent, currentItems, "");
+
+    // Print view: two full copies stacked on one page, separated by a cut line
+    document.getElementById("printCopies").innerHTML =
+      "<div class='print-copy'>" + buildReceiptHtml(currentBill, currentStudent, currentItems, "Parent's Copy") + "</div>" +
+      "<div class='cut-line'>✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ✂</div>" +
+      "<div class='print-copy'>" + buildReceiptHtml(currentBill, currentStudent, currentItems, "Shopkeeper's Copy") + "</div>";
+
+    // Enable WhatsApp button only if a parent phone number exists
+    const whatsappBtn = document.getElementById("whatsappBtn");
+    if (currentStudent.ParentPhone) {
+      whatsappBtn.disabled = false;
+    } else {
+      whatsappBtn.disabled = true;
+      document.getElementById("phoneNote").textContent = "No parent phone number on file for this student — add one via Students page to enable WhatsApp sending.";
+    }
+  }
+
+  function normalizePhone(raw) {
+    let digits = String(raw || "").replace(/\D/g, "");
+    if (digits.length === 10) digits = "91" + digits; // default to India country code
+    return digits;
+  }
+
+  function sendWhatsApp() {
+    if (!currentBill || !currentStudent) return;
+    const phone = normalizePhone(currentStudent.ParentPhone);
+    if (!phone) {
+      alert("No parent phone number available for this student.");
+      return;
+    }
+
+    const billDate = new Date(currentBill.BillDate).toLocaleDateString();
+    let itemLines = "";
+    currentItems.forEach(function (it) {
+      itemLines += "- " + it.ProductName + " (" + it.ColourName + ", " + it.SizeName + ") x" + it.Qty + " = ₹" + it.LineTotal + "\n";
+    });
+
+    const message =
+      "BABA General Store — Bill Receipt\n" +
+      "Bill No: " + currentBill.BillNo + "\n" +
+      "Date: " + billDate + "\n" +
+      "Student: " + (currentStudent.StudentName || "-") + " (Adm# " + (currentStudent.AdmissionNo || "-") + ")\n\n" +
+      "Items:\n" + itemLines + "\n" +
+      "Total Amount: ₹" + currentBill.TotalAmount + "\n" +
+      "Amount Paid: ₹" + currentBill.AmountPaid + "\n" +
+      "Amount Due: ₹" + currentBill.AmountDue + "\n\n" +
+      "Thank you for shopping with us!";
+
+    const url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(message);
+    window.open(url, "_blank");
   }
 
   loadReceipt();

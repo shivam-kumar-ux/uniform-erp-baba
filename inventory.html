@@ -63,6 +63,11 @@
       <div class="summary-box">Low Stock Items<strong id="lowStockCount">-</strong></div>
       <div class="summary-box">Total Units in Stock<strong id="totalUnits">-</strong></div>
     </div>
+    <div class="summary">
+      <div class="summary-box">Total Buying Value (Stock Cost)<strong id="totalBuyingValue">-</strong></div>
+      <div class="summary-box">Total Selling Value (Potential Revenue)<strong id="totalSellingValue">-</strong></div>
+      <div class="summary-box">Potential Profit<strong id="totalPotentialProfit">-</strong></div>
+    </div>
     <div class="toolbar">
       <select id="branchFilter" onchange="loadInventory()">
         <option value="">All Branches</option>
@@ -73,8 +78,8 @@
       <label style="font-size:13px;"><input type="checkbox" id="lowOnly" onchange="renderTable()"> Show low stock only</label>
     </div>
     <table>
-      <thead><tr><th>Product</th><th>Colour</th><th>Size</th><th>Branch</th><th>Stock</th><th>Status</th></tr></thead>
-      <tbody id="inventoryBody"><tr><td colspan="6">Loading...</td></tr></tbody>
+      <thead><tr><th>Product</th><th>Colour</th><th>Size</th><th>Branch</th><th>Stock</th><th>Buying Price</th><th>Selling Price</th><th>Stock Value (Cost)</th><th>Status</th></tr></thead>
+      <tbody id="inventoryBody"><tr><td colspan="9">Loading...</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -120,7 +125,7 @@
     const tbody = document.getElementById("inventoryBody");
     tbody.innerHTML = "";
     if (rows.length === 0) {
-      tbody.innerHTML = "<tr><td colspan='6'>No matching stock records.</td></tr>";
+      tbody.innerHTML = "<tr><td colspan='9'>No matching stock records.</td></tr>";
     } else {
       rows.forEach(function (i) {
         const tr = document.createElement("tr");
@@ -131,6 +136,9 @@
           "<td>" + escapeHtml(i.SizeName) + "</td>" +
           "<td>" + escapeHtml(i.Branch) + "</td>" +
           "<td>" + escapeHtml(i.CurrentStock) + "</td>" +
+          "<td>₹" + escapeHtml(i.BuyingPrice) + "</td>" +
+          "<td>₹" + escapeHtml(i.SellingPrice) + "</td>" +
+          "<td>₹" + escapeHtml(i.BuyingValue) + "</td>" +
           "<td><span class='badge " + (i.LowStock ? "badge-low" : "badge-ok") + "'>" + (i.LowStock ? "Low Stock" : "OK") + "</span></td>";
         tbody.appendChild(tr);
       });
@@ -140,6 +148,12 @@
     document.getElementById("totalSkus").textContent = allInventory.length;
     document.getElementById("lowStockCount").textContent = allInventory.filter(function (i) { return i.LowStock; }).length;
     document.getElementById("totalUnits").textContent = allInventory.reduce(function (sum, i) { return sum + Number(i.CurrentStock || 0); }, 0);
+
+    const totalBuyingValue = allInventory.reduce(function (sum, i) { return sum + Number(i.BuyingValue || 0); }, 0);
+    const totalSellingValue = allInventory.reduce(function (sum, i) { return sum + Number(i.SellingValue || 0); }, 0);
+    document.getElementById("totalBuyingValue").textContent = "₹" + totalBuyingValue.toFixed(2);
+    document.getElementById("totalSellingValue").textContent = "₹" + totalSellingValue.toFixed(2);
+    document.getElementById("totalPotentialProfit").textContent = "₹" + (totalSellingValue - totalBuyingValue).toFixed(2);
   }
 
   loadInventory();

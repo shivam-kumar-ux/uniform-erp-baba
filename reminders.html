@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BABA General Store - Due Reminders</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; }
+  header {
+    background: #1e3a5f; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header button {
+    background: #c0392b; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; margin-left: 12px; font-size: 13px;
+  }
+  nav { max-width: 1000px; margin: 16px auto 0; padding: 0 16px; font-size: 13px; }
+  nav a { color: #2c5282; text-decoration: none; margin-right: 16px; }
+  nav a:hover { text-decoration: underline; }
+  .container { max-width: 1000px; margin: 16px auto 24px; padding: 0 16px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
+  .toolbar { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: end; }
+  .toolbar label { font-size: 12px; font-weight: 600; color: #444; display: block; margin-bottom: 4px; }
+  .toolbar select, .toolbar input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+  .summary { display: flex; gap: 20px; margin-bottom: 16px; flex-wrap: wrap; }
+  .summary-box { background: #f4f6f8; border-radius: 6px; padding: 10px 16px; font-size: 13px; }
+  .summary-box strong { display: block; font-size: 18px; color: #1e3a5f; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+  th { color: #666; font-weight: 600; }
+  .btn-whatsapp {
+    background: #1e7e34; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; font-size: 12px;
+  }
+  .btn-whatsapp:disabled { background: #999; cursor: not-allowed; }
+  .no-phone { color: #c0392b; font-size: 11px; }
+  .note-box {
+    background: #fff8e1; border-left: 4px solid #b8860b; padding: 10px 14px;
+    font-size: 12px; color: #6b5300; margin-bottom: 16px; border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><strong>BABA General Store</strong> — Due Reminders</h1>
+  <div><button onclick="logout()">Log Out</button></div>
+</header>
+
+<nav>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="finance.html">Finance</a>
+  <a href="bills.html">Bill History</a>
+</nav>
+
+<div class="container">
+  <div class="card">
+    <div class="note-box">
+      Each reminder opens a WhatsApp chat with the message ready to send — you'll need to click Send yourself inside WhatsApp for each parent. WhatsApp doesn't allow sending bulk automatic messages without a paid business API, so this is done one parent at a time.
+    </div>
+    <div class="toolbar">
+      <div><label>Branch</label>
+        <select id="branchFilter" onchange="loadDues()">
+          <option value="">All Branches</option>
+          <option value="Shahpur">Shahpur</option>
+          <option value="Telaiya Dam">Telaiya Dam</option>
+        </select>
+      </div>
+      <div><label>Clear Due Before</label><input id="clearByDate" type="date"></div>
+    </div>
+    <div class="summary">
+      <div class="summary-box">Students with Dues<strong id="studentCount">-</strong></div>
+      <div class="summary-box">Total Outstanding<strong id="totalOutstanding">-</strong></div>
+    </div>
+    <table>
+      <thead><tr><th>Student</th><th>Admission No.</th><th>Branch</th><th>Bills Due</th><th>Total Due</th><th>WhatsApp</th></tr></thead>
+      <tbody id="duesBody"><tr><td colspan="6">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
+  const token = localStorage.getItem("uniformerp_token");
+
+  if (!token) window.location.href = "login.html";
+
+  // Default "clear by" date: one week from today
+  const defaultClearBy = new Date();
+  defaultClearBy.setDate(defaultClearBy.getDate() + 7);
+  document.getElementById("clearByDate").valueAsDate = defaultClearBy;
+
+  function logout() { localStorage.clear(); window.location.href = "login.html"; }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function normalizePhone(raw) {
+    let digits = String(raw || "").replace(/\D/g, "");
+    if (digits.length === 10) digits = "91" + digits; // default to India country code
+    return digits;
+  }
+
+  async function loadDues() {
+    const branch = document.getElementById("branchFilter").value;
+    const url = API_URL + "?action=listDuesByStudent&token=" + encodeURIComponent(token) +
+      (branch ? "&branch=" + encodeURIComponent(branch) : "");
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.success) {
+      document.getElementById("duesBody").innerHTML = "<tr><td colspan='6'>" + escapeHtml(data.message) + "</td></tr>";
+      return;
+    }
+
+    const tbody = document.getElementById("duesBody");
+    tbody.innerHTML = "";
+    if (data.data.length === 0) {
+      tbody.innerHTML = "<tr><td colspan='6'>No outstanding dues. 🎉</td></tr>";
+    } else {
+      data.data.forEach(function (d, idx) {
+        const tr = document.createElement("tr");
+        const hasPhone = !!d.parentPhone;
+        tr.innerHTML =
+          "<td>" + escapeHtml(d.studentName) + "</td>" +
+          "<td>" + escapeHtml(d.admissionNo) + "</td>" +
+          "<td>" + escapeHtml(d.branch) + "</td>" +
+          "<td>" + d.billCount + "</td>" +
+          "<td>₹" + d.totalDue.toFixed(2) + "</td>" +
+          "<td>" +
+            (hasPhone
+              ? "<button class='btn-whatsapp' onclick='sendReminder(" + idx + ")'>Send Reminder</button>"
+              : "<span class='no-phone'>No phone on file</span>") +
+          "</td>";
+        tbody.appendChild(tr);
+      });
+    }
+
+    window.currentDues = data.data;
+
+    document.getElementById("studentCount").textContent = data.data.length;
+    const total = data.data.reduce(function (s, d) { return s + Number(d.totalDue || 0); }, 0);
+    document.getElementById("totalOutstanding").textContent = "₹" + total.toFixed(2);
+  }
+
+  function sendReminder(idx) {
+    const d = window.currentDues[idx];
+    const phone = normalizePhone(d.parentPhone);
+    if (!phone) { alert("No phone number on file for this student."); return; }
+
+    const today = new Date().toLocaleDateString();
+    const clearByInput = document.getElementById("clearByDate").value;
+    const clearByDate = clearByInput ? new Date(clearByInput).toLocaleDateString() : "at your earliest convenience";
+
+    const message =
+      "BABA General Store — Payment Reminder\n" +
+      "Date: " + today + "\n\n" +
+      "Dear Parent/Guardian of " + d.studentName + " (Adm# " + d.admissionNo + "),\n\n" +
+      "This is a friendly reminder that an amount of ₹" + d.totalDue.toFixed(2) + " is due against " + d.billCount +
+      (d.billCount > 1 ? " bills" : " bill") + " at our " + d.branch + " branch.\n\n" +
+      "Kindly clear the due amount before " + clearByDate + ".\n\n" +
+      "Thank you,\nBABA General Store";
+
+    const url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(message);
+    window.open(url, "_blank");
+  }
+
+  loadDues();
+</script>
+
+</body>
+</html>

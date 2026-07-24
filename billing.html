@@ -89,7 +89,7 @@
           <div><label>Academic Session</label><select id="newSessionId"><option value="">-- Select --</option></select></div>
           <div><label>Class</label><input id="newClassName" placeholder="e.g. 6"></div>
           <div><label>Section</label><input id="newSection" placeholder="e.g. A"></div>
-          <div><label>Parent Phone</label><input id="newParentPhone"></div>
+          <div><label>Parent WhatsApp Number</label><input id="newParentPhone" placeholder="10-digit number"></div>
         </div>
         <button class="btn-add" onclick="saveNewStudent()">Save Student</button>
         <div id="addStudentMsg" style="font-size:12px; margin-top:6px; display:none;"></div>
@@ -320,6 +320,10 @@
       return i.ProductID === productId && i.ColourID === colourId && i.SizeID === sizeId;
     });
     document.getElementById("stockNote").textContent = match ? ("Available stock: " + match.CurrentStock) : "Available stock: 0";
+    // Auto-fill the price from the selling price set during Purchase Entry (still editable if needed)
+    if (match && Number(match.SellingPrice) > 0) {
+      document.getElementById("itemPrice").value = match.SellingPrice;
+    }
   }
 
   function addToCart() {

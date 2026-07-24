@@ -72,9 +72,11 @@
         </select>
       </div>
       <div><label>Purchase Date</label><input id="purchaseDate" type="date"></div>
-      <div><label>Quantity</label><input id="qty" type="number" min="1"></div>
-      <div><label>Cost Price (per unit)</label><input id="costPrice" type="number" min="0" step="0.01"></div>
+      <div><label>Quantity</label><input id="qty" type="number" min="1" oninput="updateTotalCost()"></div>
+      <div><label>Cost Price (per unit)</label><input id="costPrice" type="number" min="0" step="0.01" oninput="updateTotalCost()"></div>
+      <div><label>Selling Price (per unit)</label><input id="sellingPrice" type="number" min="0" step="0.01"></div>
     </div>
+    <div id="totalCostNote" style="font-size:13px; color:#444; margin-top:10px; font-weight:600;"></div>
     <button class="btn-primary" onclick="savePurchase()">Save Purchase</button>
     <div id="msg"></div>
   </div>
@@ -82,8 +84,8 @@
   <div class="card">
     <h2>Recent Purchases</h2>
     <table>
-      <thead><tr><th>Date</th><th>Product</th><th>Colour</th><th>Size</th><th>Supplier</th><th>Branch</th><th>Qty</th><th>Remaining</th><th>Cost/Unit</th></tr></thead>
-      <tbody id="purchasesBody"><tr><td colspan="9">Loading...</td></tr></tbody>
+      <thead><tr><th>Date</th><th>Product</th><th>Colour</th><th>Size</th><th>Supplier</th><th>Branch</th><th>Qty</th><th>Remaining</th><th>Cost/Unit</th><th>Selling/Unit</th></tr></thead>
+      <tbody id="purchasesBody"><tr><td colspan="10">Loading...</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -102,6 +104,17 @@
     const el = document.getElementById("msg");
     el.textContent = text; el.className = type; el.style.display = "block";
     setTimeout(function () { el.style.display = "none"; }, 3500);
+  }
+
+  function updateTotalCost() {
+    const qty = Number(document.getElementById("qty").value) || 0;
+    const cost = Number(document.getElementById("costPrice").value) || 0;
+    const note = document.getElementById("totalCostNote");
+    if (qty > 0 && cost > 0) {
+      note.textContent = qty + " x ₹" + cost + " = ₹" + (qty * cost).toFixed(2) + " (total cost)";
+    } else {
+      note.textContent = "";
+    }
   }
 
   function escapeHtml(str) {
@@ -147,7 +160,8 @@
         "<td>" + escapeHtml(b.Branch) + "</td>" +
         "<td>" + escapeHtml(b.QtyPurchased) + "</td>" +
         "<td>" + escapeHtml(b.QtyRemaining) + "</td>" +
-        "<td>₹" + escapeHtml(b.CostPrice) + "</td>";
+        "<td>₹" + escapeHtml(b.CostPrice) + "</td>" +
+        "<td>₹" + escapeHtml(b.SellingPrice || "-") + "</td>";
       tbody.appendChild(tr);
     });
   }
@@ -159,10 +173,12 @@
     const supplierId = document.getElementById("supplierId").value;
     const qty = document.getElementById("qty").value;
     const costPrice = document.getElementById("costPrice").value;
+    const sellingPrice = document.getElementById("sellingPrice").value;
 
     if (!productId || !colourId || !sizeId || !supplierId) { showMsg("Please fill all dropdowns", "error"); return; }
     if (!qty || Number(qty) <= 0) { showMsg("Enter a valid quantity", "error"); return; }
     if (!costPrice) { showMsg("Enter a cost price", "error"); return; }
+    if (!sellingPrice || Number(sellingPrice) <= 0) { showMsg("Enter a selling price", "error"); return; }
 
     const params = new URLSearchParams({
       action: "addPurchase",
@@ -174,7 +190,8 @@
       branch: document.getElementById("branch").value,
       purchaseDate: document.getElementById("purchaseDate").value,
       qty: qty,
-      costPrice: costPrice
+      costPrice: costPrice,
+      sellingPrice: sellingPrice
     });
 
     const res = await fetch(API_URL + "?" + params.toString());
@@ -183,6 +200,8 @@
       showMsg("Purchase recorded.", "success");
       document.getElementById("qty").value = "";
       document.getElementById("costPrice").value = "";
+      document.getElementById("sellingPrice").value = "";
+      document.getElementById("totalCostNote").textContent = "";
       loadPurchases();
     } else {
       showMsg(data.message || "Save failed.", "error");
