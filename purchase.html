@@ -52,6 +52,18 @@
   .review-meta label { font-size: 12px; font-weight: 600; color: #444; display: block; margin-bottom: 4px; }
   .review-meta select, .review-meta input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
   .btn-remove-row { background: none; border: none; color: #c0392b; cursor: pointer; font-size: 12px; }
+  .link-btn { background: none; border: none; color: #2c5282; cursor: pointer; font-size: 13px; padding: 0; margin-right: 10px; }
+  .delete-btn { background: none; border: none; color: #c0392b; cursor: pointer; font-size: 13px; padding: 0; }
+  .modal-overlay {
+    display: none; position: fixed; top:0; left:0; right:0; bottom:0;
+    background: rgba(0,0,0,0.4); align-items: center; justify-content: center; z-index: 1000;
+  }
+  .modal-box { background: white; border-radius: 8px; padding: 24px; width: 340px; }
+  .modal-box h3 { margin: 0 0 14px; font-size: 15px; }
+  .modal-box label { font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; margin-top: 10px; }
+  .modal-box input, .modal-box select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .btn-secondary { background: #888; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -130,9 +142,30 @@
   <div class="card">
     <h2>Recent Purchases</h2>
     <table>
-      <thead><tr><th>Date</th><th>Product</th><th>Colour</th><th>Size</th><th>Supplier</th><th>Branch</th><th>Qty</th><th>Remaining</th><th>Cost/Unit</th><th>Selling/Unit</th></tr></thead>
-      <tbody id="purchasesBody"><tr><td colspan="10">Loading...</td></tr></tbody>
+      <thead><tr><th>Date</th><th>Product</th><th>Colour</th><th>Size</th><th>Supplier</th><th>Branch</th><th>Qty</th><th>Remaining</th><th>Cost/Unit</th><th>Selling/Unit</th><th>Total Cost</th><th id="purchaseActionsHeader" style="display:none;">Actions</th></tr></thead>
+      <tbody id="purchasesBody"><tr><td colspan="11">Loading...</td></tr></tbody>
     </table>
+  </div>
+</div>
+
+<div class="modal-overlay" id="editModalOverlay">
+  <div class="modal-box">
+    <h3>Edit Purchase</h3>
+    <label>Supplier</label>
+    <select id="editSupplierId"></select>
+    <label>Purchase Date</label>
+    <input id="editPurchaseDate" type="date">
+    <label>Quantity <span id="editQtyLockNote" style="font-weight:400; color:#c0392b; display:none;">(locked — some already sold)</span></label>
+    <input id="editQty" type="number" min="1">
+    <label>Cost Price (per unit)</label>
+    <input id="editCostPrice" type="number" min="0" step="0.01">
+    <label>Selling Price (per unit)</label>
+    <input id="editSellingPrice" type="number" min="0" step="0.01">
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeEditModal()">Cancel</button>
+      <button class="btn-primary" style="margin-top:0;" onclick="submitEditPurchase()">Save Changes</button>
+    </div>
+    <div id="editMsg" style="font-size:13px; margin-top:8px; display:none;"></div>
   </div>
 </div>
 
@@ -381,15 +414,21 @@
     loadPurchases();
   }
 
+  const isOwner = localStorage.getItem("uniformerp_role") === "Owner";
+  if (isOwner) document.getElementById("purchaseActionsHeader").style.display = "";
+
+  let allPurchases = [];
+
   async function loadPurchases() {
     const res = await fetch(API_URL + "?action=listPurchases&token=" + encodeURIComponent(token));
     const data = await res.json();
     if (!data.success) { showMsg(data.message, "error"); return; }
 
+    allPurchases = data.data;
     const tbody = document.getElementById("purchasesBody");
     tbody.innerHTML = "";
     if (data.data.length === 0) {
-      tbody.innerHTML = "<tr><td colspan='9'>No purchases recorded yet.</td></tr>";
+      tbody.innerHTML = "<tr><td colspan='11'>No purchases recorded yet.</td></tr>";
       return;
     }
     data.data.slice(0, 30).forEach(function (b) {
@@ -404,9 +443,83 @@
         "<td>" + escapeHtml(b.QtyPurchased) + "</td>" +
         "<td>" + escapeHtml(b.QtyRemaining) + "</td>" +
         "<td>₹" + escapeHtml(b.CostPrice) + "</td>" +
-        "<td>₹" + escapeHtml(b.SellingPrice || "-") + "</td>";
+        "<td>₹" + escapeHtml(b.SellingPrice || "-") + "</td>" +
+        "<td>₹" + escapeHtml(b.TotalCost) + "</td>" +
+        (isOwner
+          ? "<td><button class='link-btn' onclick=\"openEditPurchase('" + b.BatchID + "')\">Edit</button>" +
+            "<button class='delete-btn' onclick=\"deletePurchaseRow('" + b.BatchID + "')\">Delete</button></td>"
+          : "") ;
       tbody.appendChild(tr);
     });
+  }
+
+  function openEditPurchase(batchId) {
+    const b = allPurchases.find(function (x) { return x.BatchID === batchId; });
+    if (!b) return;
+    document.getElementById("editModalOverlay").dataset.batchId = batchId;
+
+    const supplierSelect = document.getElementById("editSupplierId");
+    supplierSelect.innerHTML = "";
+    suppliersList.forEach(function (s) {
+      const opt = document.createElement("option");
+      opt.value = s.SupplierID; opt.textContent = s.SupplierName;
+      if (s.SupplierID === b.SupplierID) opt.selected = true;
+      supplierSelect.appendChild(opt);
+    });
+
+    document.getElementById("editPurchaseDate").value = new Date(b.PurchaseDate).toISOString().split("T")[0];
+    document.getElementById("editQty").value = b.QtyPurchased;
+    document.getElementById("editCostPrice").value = b.CostPrice;
+    document.getElementById("editSellingPrice").value = b.SellingPrice || "";
+
+    const untouched = Number(b.QtyPurchased) === Number(b.QtyRemaining);
+    document.getElementById("editQty").disabled = !untouched;
+    document.getElementById("editQtyLockNote").style.display = untouched ? "none" : "inline";
+
+    document.getElementById("editModalOverlay").style.display = "flex";
+  }
+
+  function closeEditModal() {
+    document.getElementById("editModalOverlay").style.display = "none";
+  }
+
+  async function submitEditPurchase() {
+    const batchId = document.getElementById("editModalOverlay").dataset.batchId;
+    const params = new URLSearchParams({
+      action: "updatePurchase",
+      token: token,
+      batchId: batchId,
+      supplierId: document.getElementById("editSupplierId").value,
+      purchaseDate: document.getElementById("editPurchaseDate").value,
+      costPrice: document.getElementById("editCostPrice").value,
+      sellingPrice: document.getElementById("editSellingPrice").value
+    });
+    if (!document.getElementById("editQty").disabled) {
+      params.set("qty", document.getElementById("editQty").value);
+    }
+
+    const res = await fetch(API_URL + "?" + params.toString());
+    const data = await res.json();
+    const msgEl = document.getElementById("editMsg");
+    if (data.success) {
+      closeEditModal();
+      loadPurchases();
+    } else {
+      msgEl.textContent = data.message || "Failed to save changes.";
+      msgEl.style.color = "#c0392b";
+      msgEl.style.display = "block";
+    }
+  }
+
+  async function deletePurchaseRow(batchId) {
+    if (!confirm("Delete this purchase record? This can only be undone by re-entering it manually.")) return;
+    const res = await fetch(API_URL + "?" + new URLSearchParams({ action: "deletePurchase", token: token, batchId: batchId }));
+    const data = await res.json();
+    if (data.success) {
+      loadPurchases();
+    } else {
+      alert(data.message || "Failed to delete purchase.");
+    }
   }
 
   async function savePurchase() {
