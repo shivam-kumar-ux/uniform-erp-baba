@@ -1,0 +1,124 @@
+/**
+ * UniformERP - theme.css
+ * Shared across every page. Adds:
+ *  1. A polished floating toolbar (dark/light mode + language toggle) injected by app.js
+ *  2. Dark mode overrides (activated via body.dark-mode, using !important so they can
+ *     override each page's own inline hex-coded styles without editing every page's CSS)
+ *  3. Mobile-responsive improvements: better spacing, larger tap targets, horizontal
+ *     table scrolling, single-column forms on narrow screens
+ */
+
+/* ---------------- Floating toolbar ---------------- */
+#uerp-toolbar {
+  position: fixed; top: 10px; right: 10px; z-index: 3000;
+  display: flex; gap: 6px;
+}
+#uerp-toolbar button {
+  background: rgba(255,255,255,0.9); border: 1px solid #ccc; border-radius: 20px;
+  padding: 6px 12px; font-size: 13px; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+body.dark-mode #uerp-toolbar button {
+  background: rgba(30,37,52,0.9); color: #e5e7eb; border-color: #444;
+}
+
+/* ---------------- Dark mode ---------------- */
+body.dark-mode {
+  background: #10151f !important;
+  color: #e5e7eb !important;
+}
+body.dark-mode header {
+  background: #0b1622 !important;
+}
+body.dark-mode .card,
+body.dark-mode .receipt-card,
+body.dark-mode .modal-box {
+  background: #1b2330 !important;
+  color: #e5e7eb !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4) !important;
+}
+body.dark-mode .card h2,
+body.dark-mode h1, body.dark-mode h2, body.dark-mode h3 {
+  color: #dbe4f0 !important;
+}
+body.dark-mode table {
+  color: #e5e7eb !important;
+}
+body.dark-mode th, body.dark-mode td {
+  border-color: #2c3644 !important;
+  color: #e5e7eb !important;
+}
+body.dark-mode th {
+  color: #9aa7ba !important;
+}
+body.dark-mode input,
+body.dark-mode select,
+body.dark-mode textarea {
+  background: #232c3b !important;
+  color: #e5e7eb !important;
+  border-color: #3a4557 !important;
+}
+body.dark-mode .summary-box,
+body.dark-mode .student-block,
+body.dark-mode .low-row,
+body.dark-mode .scan-dropzone {
+  background: #232c3b !important;
+  color: #e5e7eb !important;
+}
+body.dark-mode nav a {
+  color: #7ea6e0 !important;
+}
+body.dark-mode label {
+  color: #cbd5e1 !important;
+}
+body.dark-mode .bill-result,
+body.dark-mode .student-result {
+  border-color: #2c3644 !important;
+}
+body.dark-mode .bill-result:hover,
+body.dark-mode .student-result:hover {
+  background: #26303f !important;
+}
+
+/* ---------------- Mobile responsive improvements ---------------- */
+@media (max-width: 700px) {
+  header {
+    flex-wrap: wrap;
+    padding: 12px 16px !important;
+  }
+  header h1 {
+    font-size: 16px !important;
+  }
+  nav {
+    display: flex; flex-wrap: wrap; gap: 4px 12px;
+  }
+  .container {
+    padding: 0 10px !important;
+    margin-top: 10px !important;
+  }
+  .card {
+    padding: 14px !important;
+    border-radius: 10px !important;
+  }
+  .form-grid, .item-grid, .review-meta {
+    grid-template-columns: 1fr !important;
+  }
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  button, .btn-primary, .btn-small, .btn-add, .link-btn {
+    min-height: 38px;
+  }
+  input, select {
+    font-size: 16px !important; /* prevents iOS auto-zoom on focus */
+  }
+  #uerp-toolbar {
+    top: auto; bottom: 10px; right: 10px;
+  }
+}

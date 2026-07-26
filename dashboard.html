@@ -34,6 +34,11 @@
   .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
   @media (max-width: 700px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
 </style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e3a5f">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="theme.css">
 </head>
 <body>
 
@@ -48,6 +53,7 @@
 <nav>
   <a href="billing.html">New Bill</a>
   <a href="bills.html">Bill History</a>
+  <a href="returns.html">Returns &amp; Exchanges</a>
   <a href="finance.html">Finance</a>
   <a href="reminders.html">Due Reminders</a>
   <a href="inventory.html">Inventory</a>
@@ -176,5 +182,6 @@
   loadSalesChart();
 </script>
 
+<script src="app.js"></script>
 </body>
 </html>

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BABA General Store - Returns &amp; Exchanges</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; }
+  header {
+    background: #1e3a5f; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header button {
+    background: #c0392b; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; margin-left: 12px; font-size: 13px;
+  }
+  nav { max-width: 1000px; margin: 16px auto 0; padding: 0 16px; font-size: 13px; }
+  nav a { color: #2c5282; text-decoration: none; margin-right: 16px; }
+  .container { max-width: 1000px; margin: 16px auto 24px; padding: 0 16px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
+  input, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; width: 100%; }
+  label { font-size: 12px; font-weight: 600; color: #444; display: block; margin-bottom: 4px; }
+  .bill-result { padding: 10px; border: 1px solid #eee; border-radius: 6px; margin-top: 8px; cursor: pointer; }
+  .bill-result:hover { background: #f4f6f8; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; }
+  th { color: #666; }
+  .btn-primary {
+    background: #2c5282; color: white; border: none; padding: 10px 20px;
+    border-radius: 4px; font-size: 14px; cursor: pointer; margin-top: 12px;
+  }
+  .btn-primary:hover { background: #1e3a5f; }
+  .btn-small { background: #2c5282; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 12px; }
+  #msg, #resultMsg { font-size: 13px; margin-top: 10px; display: none; padding: 10px; border-radius: 6px; }
+  #msg.error, #resultMsg.error { color: #c0392b; background: #fdecea; }
+  #msg.success, #resultMsg.success { color: #1e7e34; background: #e8f5e9; }
+  .exchange-box { border-top: 1px dashed #ccc; margin-top: 14px; padding-top: 14px; display: none; }
+  .type-toggle { display: flex; gap: 10px; margin: 10px 0; }
+  .type-toggle button {
+    flex: 1; padding: 10px; border: 2px solid #2c5282; background: white; color: #2c5282;
+    border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600;
+  }
+  .type-toggle button.active { background: #2c5282; color: white; }
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e3a5f">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+
+<header>
+  <h1><strong>BABA General Store</strong> — Returns &amp; Exchanges</h1>
+  <div><button onclick="logout()">Log Out</button></div>
+</header>
+
+<nav>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="billing.html">New Bill</a>
+  <a href="bills.html">Bill History</a>
+</nav>
+
+<div class="container">
+  <div class="card">
+    <h2>1. Find the Original Bill</h2>
+    <input id="billSearch" placeholder="Search by bill no, student name, or admission no..." oninput="searchBills()">
+    <div id="billResults"></div>
+    <div id="msg"></div>
+  </div>
+
+  <div class="card" id="itemsCard" style="display:none;">
+    <h2>2. Select Item to Return</h2>
+    <div id="selectedBillInfo" style="font-size:13px; color:#444; margin-bottom:10px;"></div>
+    <table>
+      <thead><tr><th>Item</th><th>Qty Bought</th><th>Already Returned</th><th>Returnable</th><th>Unit Price</th><th></th></tr></thead>
+      <tbody id="itemsBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card" id="returnFormCard" style="display:none;">
+    <h2>3. Process Return / Exchange</h2>
+    <div id="selectedItemInfo" style="font-size:13px; color:#444; margin-bottom:6px;"></div>
+
+    <div class="type-toggle">
+      <button id="btnTypeRefund" class="active" onclick="setReturnType('Refund')">Refund Only</button>
+      <button id="btnTypeExchange" onclick="setReturnType('Exchange')">Exchange for Another Item</button>
+    </div>
+
+    <div class="form-grid">
+      <div><label>Quantity to Return</label><input id="returnQty" type="number" min="1"></div>
+      <div><label>Reason (optional)</label><input id="returnReason" placeholder="e.g. wrong size"></div>
+    </div>
+
+    <div class="exchange-box" id="exchangeBox">
+      <h3 style="font-size:14px; color:#1e3a5f;">Replacement Item</h3>
+      <div class="form-grid">
+        <div><label>Product</label><select id="newProductId"></select></div>
+        <div><label>Colour</label><select id="newColourId"></select></div>
+        <div><label>Size</label><select id="newSizeId"></select></div>
+        <div><label>Quantity</label><input id="newQty" type="number" min="1" value="1"></div>
+        <div><label>Price per Unit</label><input id="newUnitPrice" type="number" min="0" step="0.01"></div>
+        <div><label>Amount Paid Now (if extra owed)</label><input id="amountPaidNow" type="number" min="0" step="0.01" value="0"></div>
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="submitReturn()">Confirm Return</button>
+    <div id="resultMsg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Recent Returns &amp; Exchanges</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Bill No</th><th>Student</th><th>Item</th><th>Qty</th><th>Type</th><th>Refund</th><th>Cash Given</th></tr></thead>
+      <tbody id="returnsHistoryBody"><tr><td colspan="8">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
+  const token = localStorage.getItem("uniformerp_token");
+  if (!token) window.location.href = "login.html";
+
+  let selectedBillId = null;
+  let selectedBillItem = null;
+  let currentType = "Refund";
+  let productsList = [], coloursList = [], sizesList = [], inventoryList = [];
+
+  function logout() { localStorage.clear(); window.location.href = "login.html"; }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function showMsg(id, text, type) {
+    const el = document.getElementById(id);
+    el.textContent = text; el.className = type; el.style.display = "block";
+  }
+
+  let searchTimer;
+  function searchBills() {
+    clearTimeout(searchTimer);
+    const q = document.getElementById("billSearch").value.trim();
+    if (q.length < 2) { document.getElementById("billResults").innerHTML = ""; return; }
+    searchTimer = setTimeout(async function () {
+      const res = await fetch(API_URL + "?action=lookupBillForReturn&token=" + encodeURIComponent(token) + "&query=" + encodeURIComponent(q));
+      const data = await res.json();
+      const container = document.getElementById("billResults");
+      container.innerHTML = "";
+      if (data.success) {
+        data.data.forEach(function (b) {
+          const div = document.createElement("div");
+          div.className = "bill-result";
+          const billDate = new Date(b.BillDate).toLocaleDateString();
+          div.textContent = b.BillNo + " — " + b.StudentName + " (Adm# " + b.AdmissionNo + ") — " + billDate + " — Total ₹" + b.TotalAmount;
+          div.onclick = function () { selectBill(b); };
+          container.appendChild(div);
+        });
+      }
+    }, 300);
+  }
+
+  async function selectBill(b) {
+    selectedBillId = b.BillID;
+    document.getElementById("billResults").innerHTML = "";
+    document.getElementById("billSearch").value = "";
+    document.getElementById("selectedBillInfo").textContent =
+      b.BillNo + " — " + b.StudentName + " — Total ₹" + b.TotalAmount + " (Due ₹" + b.AmountDue + ")";
+
+    const res = await fetch(API_URL + "?action=getBillItemsForReturn&token=" + encodeURIComponent(token) + "&billId=" + encodeURIComponent(selectedBillId));
+    const data = await res.json();
+    if (!data.success) { showMsg("msg", data.message, "error"); return; }
+
+    const tbody = document.getElementById("itemsBody");
+    tbody.innerHTML = "";
+    data.data.forEach(function (it) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + escapeHtml(it.ProductName) + " (" + escapeHtml(it.ColourName) + ", " + escapeHtml(it.SizeName) + ")</td>" +
+        "<td>" + it.Qty + "</td>" +
+        "<td>" + it.QtyAlreadyReturned + "</td>" +
+        "<td>" + it.QtyReturnable + "</td>" +
+        "<td>₹" + it.UnitPrice + "</td>" +
+        "<td>" + (it.QtyReturnable > 0
+          ? "<button class='btn-small' onclick='selectItem(" + JSON.stringify(it).replace(/'/g, "&apos;") + ")'>Select</button>"
+          : "<span style='color:#999;'>Fully returned</span>") + "</td>";
+      tbody.appendChild(tr);
+    });
+    document.getElementById("itemsCard").style.display = "block";
+    document.getElementById("returnFormCard").style.display = "none";
+  }
+
+  function selectItem(it) {
+    selectedBillItem = it;
+    document.getElementById("selectedItemInfo").innerHTML =
+      "<strong>" + escapeHtml(it.ProductName) + " (" + escapeHtml(it.ColourName) + ", " + escapeHtml(it.SizeName) + ")</strong> — up to " + it.QtyReturnable + " unit(s) returnable at ₹" + it.UnitPrice + " each";
+    document.getElementById("returnQty").value = 1;
+    document.getElementById("returnQty").max = it.QtyReturnable;
+    document.getElementById("returnFormCard").style.display = "block";
+    document.getElementById("resultMsg").style.display = "none";
+    document.getElementById("returnFormCard").scrollIntoView({ behavior: "smooth" });
+  }
+
+  function setReturnType(type) {
+    currentType = type;
+    document.getElementById("btnTypeRefund").classList.toggle("active", type === "Refund");
+    document.getElementById("btnTypeExchange").classList.toggle("active", type === "Exchange");
+    document.getElementById("exchangeBox").style.display = type === "Exchange" ? "block" : "none";
+  }
+
+  async function loadMasterLists() {
+    const p = await (await fetch(API_URL + "?action=listProducts&token=" + encodeURIComponent(token))).json();
+    if (p.success) {
+      productsList = p.data.filter(function (x) { return x.Status === "Active"; });
+      const sel = document.getElementById("newProductId");
+      sel.innerHTML = "<option value=''>-- Select --</option>";
+      productsList.forEach(function (x) {
+        const opt = document.createElement("option"); opt.value = x.ProductID; opt.textContent = x.ProductName; sel.appendChild(opt);
+      });
+    }
+    const c = await (await fetch(API_URL + "?action=listColours&token=" + encodeURIComponent(token))).json();
+    if (c.success) {
+      coloursList = c.data;
+      const sel = document.getElementById("newColourId");
+      sel.innerHTML = "<option value=''>-- Select --</option>";
+      coloursList.forEach(function (x) {
+        const opt = document.createElement("option"); opt.value = x.ColourID; opt.textContent = x.ColourName; sel.appendChild(opt);
+      });
+    }
+    const s = await (await fetch(API_URL + "?action=listSizes&token=" + encodeURIComponent(token))).json();
+    if (s.success) {
+      sizesList = s.data;
+      const sel = document.getElementById("newSizeId");
+      sel.innerHTML = "<option value=''>-- Select --</option>";
+      sizesList.forEach(function (x) {
+        const opt = document.createElement("option"); opt.value = x.SizeID; opt.textContent = x.SizeName; sel.appendChild(opt);
+      });
+    }
+    const inv = await (await fetch(API_URL + "?action=listInventory&token=" + encodeURIComponent(token))).json();
+    if (inv.success) inventoryList = inv.data;
+  }
+
+  document.getElementById("newProductId").addEventListener("change", autofillNewPrice);
+  document.getElementById("newColourId").addEventListener("change", autofillNewPrice);
+  document.getElementById("newSizeId").addEventListener("change", autofillNewPrice);
+  function autofillNewPrice() {
+    const productId = document.getElementById("newProductId").value;
+    const colourId = document.getElementById("newColourId").value;
+    const sizeId = document.getElementById("newSizeId").value;
+    const match = inventoryList.find(function (i) { return i.ProductID === productId && i.ColourID === colourId && i.SizeID === sizeId; });
+    if (match && Number(match.SellingPrice) > 0) {
+      document.getElementById("newUnitPrice").value = match.SellingPrice;
+    }
+  }
+
+  async function submitReturn() {
+    const qty = document.getElementById("returnQty").value;
+    if (!qty || Number(qty) <= 0) { showMsg("resultMsg", "Enter a valid quantity.", "error"); return; }
+
+    const params = new URLSearchParams({
+      action: "processReturn",
+      token: token,
+      billItemId: selectedBillItem.BillItemID,
+      qty: qty,
+      type: currentType,
+      reason: document.getElementById("returnReason").value.trim()
+    });
+
+    if (currentType === "Exchange") {
+      params.set("newProductId", document.getElementById("newProductId").value);
+      params.set("newColourId", document.getElementById("newColourId").value);
+      params.set("newSizeId", document.getElementById("newSizeId").value);
+      params.set("newQty", document.getElementById("newQty").value);
+      params.set("newUnitPrice", document.getElementById("newUnitPrice").value);
+      params.set("amountPaidNow", document.getElementById("amountPaidNow").value || 0);
+    }
+
+    const res = await fetch(API_URL + "?" + params.toString());
+    const data = await res.json();
+
+    if (!data.success) { showMsg("resultMsg", data.message || "Failed to process.", "error"); return; }
+
+    let msg = "Processed successfully. Refund value: ₹" + data.result.refundAmount + ".";
+    if (data.result.cashRefundNeeded > 0) msg += " Hand back ₹" + data.result.cashRefundNeeded + " in cash to the customer.";
+    if (data.result.amountCollectedExtra > 0) msg += " Collected ₹" + data.result.amountCollectedExtra + " extra for the exchange.";
+    msg += " New bill total: ₹" + data.result.newBillTotal + " (Due ₹" + data.result.newBillDue + ").";
+    showMsg("resultMsg", msg, "success");
+
+    // Refresh the item list to reflect updated returnable quantities
+    selectBill({ BillID: selectedBillId, BillNo: "", StudentName: "", AdmissionNo: "", TotalAmount: data.result.newBillTotal, AmountDue: data.result.newBillDue });
+  }
+
+  async function loadReturnsHistory() {
+    const res = await fetch(API_URL + "?action=listReturns&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    const tbody = document.getElementById("returnsHistoryBody");
+    if (!data.success) { tbody.innerHTML = "<tr><td colspan='8'>" + escapeHtml(data.message) + "</td></tr>"; return; }
+    tbody.innerHTML = "";
+    if (data.data.length === 0) { tbody.innerHTML = "<tr><td colspan='8'>No returns or exchanges yet.</td></tr>"; return; }
+    data.data.slice(0, 30).forEach(function (r) {
+      const tr = document.createElement("tr");
+      const d = new Date(r.ReturnDate).toLocaleDateString();
+      tr.innerHTML =
+        "<td>" + d + "</td>" +
+        "<td>" + escapeHtml(r.BillNo) + "</td>" +
+        "<td>" + escapeHtml(r.StudentName) + "</td>" +
+        "<td>" + escapeHtml(r.ProductName) + (r.NewProductName ? " → " + escapeHtml(r.NewProductName) : "") + "</td>" +
+        "<td>" + r.QtyReturned + "</td>" +
+        "<td>" + escapeHtml(r.Type) + "</td>" +
+        "<td>₹" + r.RefundAmount + "</td>" +
+        "<td>₹" + (r.CashRefundGiven || 0) + "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  loadMasterLists();
+  loadReturnsHistory();
+</script>
+
+<script src="app.js"></script>
+</body>
+</html>
