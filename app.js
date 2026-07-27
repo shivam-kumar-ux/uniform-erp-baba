@@ -99,10 +99,23 @@
     if (document.getElementById('uerp-theme-btn')) return;
     var header = document.querySelector('header');
     if (!header) return;
+    var heading = header.querySelector('h1');
+    if (!heading) return;
 
-    // Place the buttons inside the header's existing right-side container (where Log Out already lives)
-    // so they sit naturally in the flex layout instead of floating over other content.
-    var container = header.querySelector('div') || header;
+    // Wrap the title + toolbar together so the header's space-between layout keeps
+    // them grouped on the left, instead of spreading 3 separate items apart.
+    var titleWrapper = document.createElement('div');
+    titleWrapper.style.display = 'flex';
+    titleWrapper.style.alignItems = 'center';
+    titleWrapper.style.flexWrap = 'wrap';
+    titleWrapper.style.gap = '10px';
+    heading.parentNode.insertBefore(titleWrapper, heading);
+    titleWrapper.appendChild(heading);
+
+    var wrapper = document.createElement('span');
+    wrapper.id = 'uerp-toolbar';
+    wrapper.style.display = 'flex';
+    wrapper.style.gap = '6px';
 
     var langBtn = document.createElement('button');
     langBtn.id = 'uerp-lang-btn';
@@ -114,8 +127,9 @@
     themeBtn.type = 'button';
     themeBtn.textContent = '🌙 Dark';
 
-    container.insertBefore(langBtn, container.firstChild);
-    container.insertBefore(themeBtn, container.firstChild);
+    wrapper.appendChild(themeBtn);
+    wrapper.appendChild(langBtn);
+    titleWrapper.appendChild(wrapper);
 
     themeBtn.addEventListener('click', toggleDarkMode);
     langBtn.addEventListener('click', toggleLanguage);

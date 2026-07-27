@@ -11,7 +11,7 @@
 /* ---------------- Header toolbar buttons (dark mode + language) ---------------- */
 #uerp-theme-btn, #uerp-lang-btn {
   background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.5);
-  border-radius: 20px; padding: 6px 12px; font-size: 12px; cursor: pointer; margin-right: 10px;
+  border-radius: 20px; padding: 6px 12px; font-size: 12px; cursor: pointer;
 }
 #uerp-theme-btn:hover, #uerp-lang-btn:hover {
   background: rgba(255,255,255,0.3);
