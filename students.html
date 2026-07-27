@@ -46,6 +46,14 @@
   nav a { color: #2c5282; text-decoration: none; margin-right: 16px; }
   nav a:hover { text-decoration: underline; }
 </style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e3a5f">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
 </head>
 <body>
 
@@ -203,6 +211,7 @@
         "<td>" +
           "<button class='link-btn' onclick='editStudent(" + JSON.stringify(s).replace(/'/g, "&apos;") + ")'>Edit</button>" +
           "<button class='link-btn' onclick=\"toggleStatus('" + s.StudentID + "')\">" + (s.Status === "Active" ? "Deactivate" : "Activate") + "</button>" +
+          "<button class='link-btn' onclick=\"viewHistory('" + s.StudentID + "','" + escapeHtml(s.StudentName).replace(/'/g, "&apos;") + "')\">History</button>" +
         "</td>";
       tbody.appendChild(tr);
     });
@@ -273,10 +282,63 @@
     if (data.success) loadStudents(); else showMsg(data.message, "error");
   }
 
+  async function viewHistory(studentId, studentName) {
+    const overlay = document.getElementById("historyModalOverlay");
+    document.getElementById("historyModalTitle").textContent = "Purchase History — " + studentName;
+    document.getElementById("historyModalBody").innerHTML = "Loading...";
+    overlay.style.display = "flex";
+
+    const res = await fetch(API_URL + "?action=getStudentPurchaseHistory&token=" + encodeURIComponent(token) + "&studentId=" + encodeURIComponent(studentId));
+    const data = await res.json();
+    const body = document.getElementById("historyModalBody");
+
+    if (!data.success) { body.innerHTML = "<p>" + escapeHtml(data.message) + "</p>"; return; }
+    if (data.data.length === 0) { body.innerHTML = "<p>No purchases yet for this student.</p>"; return; }
+
+    let html = "";
+    data.data.forEach(function (b) {
+      const billDate = new Date(b.BillDate).toLocaleDateString();
+      html += "<div class='history-bill'>" +
+        "<div class='history-bill-header'><strong>" + escapeHtml(b.BillNo) + "</strong> — " + billDate +
+        " — ₹" + b.TotalAmount + " <span class='status-tag-sm status-" + b.Status + "'>" + b.Status + "</span></div>" +
+        "<ul class='history-items'>";
+      b.items.forEach(function (it) {
+        html += "<li>" + escapeHtml(it.ProductName) + " (" + escapeHtml(it.ColourName) + ", " + escapeHtml(it.SizeName) + ") x" + it.Qty + " — ₹" + it.LineTotal + "</li>";
+      });
+      html += "</ul></div>";
+    });
+    body.innerHTML = html;
+  }
+
+  function closeHistoryModal() {
+    document.getElementById("historyModalOverlay").style.display = "none";
+  }
+
   loadSchoolsDropdown();
   loadSessionsDropdown();
   loadStudents();
 </script>
 
+<div class="modal-overlay" id="historyModalOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.4); align-items:center; justify-content:center; z-index:1000;">
+  <div style="background:white; border-radius:8px; padding:24px; width:90%; max-width:600px; max-height:80vh; overflow-y:auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <h3 id="historyModalTitle" style="margin:0; font-size:16px; color:#1e3a5f;"></h3>
+      <button onclick="closeHistoryModal()" style="background:none; border:none; font-size:20px; cursor:pointer;">&times;</button>
+    </div>
+    <div id="historyModalBody" style="font-size:13px;"></div>
+  </div>
+</div>
+
+<style>
+  .history-bill { border-bottom: 1px solid #eee; padding: 10px 0; }
+  .history-bill-header { margin-bottom: 6px; }
+  .history-items { margin: 0; padding-left: 18px; color: #555; }
+  .status-tag-sm { font-size: 10px; padding: 2px 6px; border-radius: 8px; font-weight: 600; }
+  .status-Paid { background: #e8f5e9; color: #1e7e34; }
+  .status-Partial { background: #fff8e1; color: #b8860b; }
+  .status-Due { background: #fdecea; color: #c0392b; }
+</style>
+
+<script src="app.js"></script>
 </body>
 </html>

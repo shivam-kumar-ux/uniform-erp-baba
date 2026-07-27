@@ -38,6 +38,9 @@
 <meta name="theme-color" content="#1e3a5f">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="theme.css">
 </head>
 <body>
@@ -88,9 +91,36 @@
     </div>
   </div>
 
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="label">Active Students</div>
+      <div class="value" id="kpiStudents">-</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Active Products</div>
+      <div class="value" id="kpiProducts">-</div>
+    </div>
+    <div class="kpi-card warn">
+      <div class="label">Low Stock Items</div>
+      <div class="value" id="kpiLowStock">-</div>
+    </div>
+    <div class="kpi-card warn">
+      <div class="label">Students with Dues</div>
+      <div class="value" id="kpiDueStudents">-</div>
+    </div>
+  </div>
+
   <div class="card">
     <h2>Sales — Last 7 Days</h2>
     <canvas id="salesChart" height="90"></canvas>
+  </div>
+
+  <div class="card">
+    <h2>Recent Bills</h2>
+    <table style="width:100%; border-collapse:collapse; font-size:13px;">
+      <thead><tr><th style="text-align:left; padding:6px;">Bill No</th><th style="text-align:left; padding:6px;">Student</th><th style="text-align:left; padding:6px;">Total</th><th style="text-align:left; padding:6px;">Status</th></tr></thead>
+      <tbody id="recentBillsBody"><tr><td colspan="4" style="padding:6px;">Loading...</td></tr></tbody>
+    </table>
   </div>
 </div>
 
@@ -177,9 +207,55 @@
     });
   }
 
+  async function loadMoreStats() {
+    const studentsRes = await fetch(API_URL + "?action=listStudents&token=" + encodeURIComponent(token));
+    const studentsData = await studentsRes.json();
+    if (studentsData.success) {
+      document.getElementById("kpiStudents").textContent = studentsData.data.filter(function (s) { return s.Status === "Active"; }).length;
+    }
+
+    const productsRes = await fetch(API_URL + "?action=listProducts&token=" + encodeURIComponent(token));
+    const productsData = await productsRes.json();
+    if (productsData.success) {
+      document.getElementById("kpiProducts").textContent = productsData.data.filter(function (p) { return p.Status === "Active"; }).length;
+    }
+
+    const invRes = await fetch(API_URL + "?action=listInventory&token=" + encodeURIComponent(token));
+    const invData = await invRes.json();
+    if (invData.success) {
+      document.getElementById("kpiLowStock").textContent = invData.data.filter(function (i) { return i.LowStock; }).length;
+    }
+
+    const duesRes = await fetch(API_URL + "?action=listDuesByStudent&token=" + encodeURIComponent(token));
+    const duesData = await duesRes.json();
+    if (duesData.success) {
+      document.getElementById("kpiDueStudents").textContent = duesData.data.length;
+    }
+  }
+
+  async function loadRecentBills() {
+    const res = await fetch(API_URL + "?action=listBills&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    const tbody = document.getElementById("recentBillsBody");
+    if (!data.success) { tbody.innerHTML = "<tr><td colspan='4' style='padding:6px;'>" + data.message + "</td></tr>"; return; }
+    tbody.innerHTML = "";
+    if (data.data.length === 0) { tbody.innerHTML = "<tr><td colspan='4' style='padding:6px;'>No bills yet.</td></tr>"; return; }
+    data.data.slice(0, 5).forEach(function (b) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td style='padding:6px; border-top:1px solid #eee;'>" + b.BillNo + "</td>" +
+        "<td style='padding:6px; border-top:1px solid #eee;'>" + b.StudentName + "</td>" +
+        "<td style='padding:6px; border-top:1px solid #eee;'>₹" + b.TotalAmount + "</td>" +
+        "<td style='padding:6px; border-top:1px solid #eee;'>" + b.Status + "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
   loadTodayKpis();
   loadDueKpi();
   loadSalesChart();
+  loadMoreStats();
+  loadRecentBills();
 </script>
 
 <script src="app.js"></script>

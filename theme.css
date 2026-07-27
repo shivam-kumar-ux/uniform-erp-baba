@@ -1,12 +1,90 @@
 /**
  * UniformERP - theme.css
  * Shared across every page. Adds:
- *  1. A polished floating toolbar (dark/light mode + language toggle) injected by app.js
- *  2. Dark mode overrides (activated via body.dark-mode, using !important so they can
- *     override each page's own inline hex-coded styles without editing every page's CSS)
- *  3. Mobile-responsive improvements: better spacing, larger tap targets, horizontal
- *     table scrolling, single-column forms on narrow screens
+ *  1. A modern visual design layer (fonts, gradients, hover animations, accent colors)
+ *     layered on top of each page's own inline styles via !important, so we get a
+ *     consistent "techy" refresh without hand-editing 18 separate files.
+ *  2. A polished header toolbar (dark/light mode + language toggle)
+ *  3. Dark mode overrides (activated via body.dark-mode)
+ *  4. Mobile-responsive improvements + a collapsible hamburger nav menu
  */
+
+/* ---------------- Modern design layer ---------------- */
+* {
+  font-family: 'Inter', 'Poppins', 'Segoe UI', Arial, sans-serif !important;
+}
+h1, h2, h3, .btn-primary, .btn-small, .btn-add, nav a {
+  font-family: 'Poppins', 'Inter', 'Segoe UI', Arial, sans-serif !important;
+}
+
+body {
+  background: #eef1f6 !important;
+}
+
+header {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 60%, #1e6091 100%) !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+}
+header h1 {
+  letter-spacing: 0.2px;
+}
+
+.card, .receipt-card, .login-box, .modal-box {
+  border-radius: 14px !important;
+  border: 1px solid rgba(0,0,0,0.04);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card:hover {
+  box-shadow: 0 8px 20px rgba(30,58,95,0.10) !important;
+}
+
+.kpi-card {
+  border-radius: 14px !important;
+  border-left: 4px solid #2c5282;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(30,58,95,0.14) !important;
+}
+.kpi-card.warn {
+  border-left-color: #c0392b;
+}
+
+.btn-primary, .btn-small, .btn-add {
+  background: linear-gradient(135deg, #2c5282, #1e3a5f) !important;
+  border: none !important;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+  letter-spacing: 0.2px;
+}
+.btn-primary:hover, .btn-small:hover, .btn-add:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(44,82,130,0.35) !important;
+  opacity: 0.95;
+}
+.btn-add {
+  background: linear-gradient(135deg, #22a04b, #1e7e34) !important;
+}
+
+nav a {
+  border-radius: 8px;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+nav a:hover {
+  background: rgba(44,82,130,0.08);
+}
+
+table thead th {
+  background: #f8fafc;
+  position: sticky; top: 0;
+}
+body.dark-mode table thead th {
+  background: #1b2330 !important;
+}
+
+::-webkit-scrollbar { height: 8px; width: 8px; }
+::-webkit-scrollbar-thumb { background: #c3cbd6; border-radius: 8px; }
+body.dark-mode ::-webkit-scrollbar-thumb { background: #3a4557; }
 
 /* ---------------- Header toolbar buttons (dark mode + language) ---------------- */
 #uerp-theme-btn, #uerp-lang-btn {
@@ -76,7 +154,37 @@ body.dark-mode .student-result:hover {
   background: #26303f !important;
 }
 
-/* ---------------- Mobile responsive improvements ---------------- */
+/* ---------------- Mobile hamburger menu ---------------- */
+.uerp-menu-toggle {
+  display: none;
+}
+@media (max-width: 700px) {
+  .uerp-menu-toggle {
+    display: block; width: calc(100% - 20px); margin: 12px auto 0; padding: 10px;
+    background: #1e3a5f; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer;
+  }
+  nav {
+    display: none !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    background: white; border-radius: 8px; margin: 8px 10px 0 !important;
+    padding: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  nav.uerp-nav-open {
+    display: flex !important;
+  }
+  nav a {
+    padding: 12px 10px !important; margin-right: 0 !important;
+    border-bottom: 1px solid #eee;
+  }
+  nav a:last-child { border-bottom: none; }
+  body.dark-mode nav {
+    background: #1b2330 !important;
+  }
+  body.dark-mode nav a {
+    border-color: #2c3644 !important;
+  }
+}
 @media (max-width: 700px) {
   header {
     flex-wrap: wrap;

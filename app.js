@@ -97,12 +97,10 @@
   // ---------------- Header toolbar buttons ----------------
   function injectToolbar() {
     if (document.getElementById('uerp-theme-btn')) return;
-    var header = document.querySelector('header');
-    if (!header) return;
-    var heading = header.querySelector('h1');
+    var heading = document.querySelector('header h1') || document.querySelector('h1');
     if (!heading) return;
 
-    // Wrap the title + toolbar together so the header's space-between layout keeps
+    // Wrap the title + toolbar together so a flex header's space-between layout keeps
     // them grouped on the left, instead of spreading 3 separate items apart.
     var titleWrapper = document.createElement('div');
     titleWrapper.style.display = 'flex';
@@ -135,9 +133,26 @@
     langBtn.addEventListener('click', toggleLanguage);
   }
 
+  // ---------------- Mobile hamburger menu ----------------
+  function injectMobileNavToggle() {
+    document.querySelectorAll('nav').forEach(function (navEl) {
+      if (navEl.dataset.uerpToggled) return;
+      navEl.dataset.uerpToggled = '1';
+      var toggleBtn = document.createElement('button');
+      toggleBtn.className = 'uerp-menu-toggle';
+      toggleBtn.type = 'button';
+      toggleBtn.textContent = '☰ Menu';
+      navEl.parentNode.insertBefore(toggleBtn, navEl);
+      toggleBtn.addEventListener('click', function () {
+        navEl.classList.toggle('uerp-nav-open');
+      });
+    });
+  }
+
   // ---------------- Init on load ----------------
   document.addEventListener('DOMContentLoaded', function () {
     injectToolbar();
+    injectMobileNavToggle();
     applyDarkMode(localStorage.getItem('uniformerp_dark_mode') === '1');
     applyLanguage(localStorage.getItem('uniformerp_lang') || 'en');
   });
