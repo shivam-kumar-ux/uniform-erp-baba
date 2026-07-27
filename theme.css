@@ -8,17 +8,13 @@
  *     table scrolling, single-column forms on narrow screens
  */
 
-/* ---------------- Floating toolbar ---------------- */
-#uerp-toolbar {
-  position: fixed; top: 10px; right: 10px; z-index: 3000;
-  display: flex; gap: 6px;
+/* ---------------- Header toolbar buttons (dark mode + language) ---------------- */
+#uerp-theme-btn, #uerp-lang-btn {
+  background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.5);
+  border-radius: 20px; padding: 6px 12px; font-size: 12px; cursor: pointer; margin-right: 10px;
 }
-#uerp-toolbar button {
-  background: rgba(255,255,255,0.9); border: 1px solid #ccc; border-radius: 20px;
-  padding: 6px 12px; font-size: 13px; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.15);
-}
-body.dark-mode #uerp-toolbar button {
-  background: rgba(30,37,52,0.9); color: #e5e7eb; border-color: #444;
+#uerp-theme-btn:hover, #uerp-lang-btn:hover {
+  background: rgba(255,255,255,0.3);
 }
 
 /* ---------------- Dark mode ---------------- */
@@ -31,7 +27,8 @@ body.dark-mode header {
 }
 body.dark-mode .card,
 body.dark-mode .receipt-card,
-body.dark-mode .modal-box {
+body.dark-mode .modal-box,
+body.dark-mode .login-box {
   background: #1b2330 !important;
   color: #e5e7eb !important;
   box-shadow: 0 1px 4px rgba(0,0,0,0.4) !important;
@@ -117,8 +114,5 @@ body.dark-mode .student-result:hover {
   }
   input, select {
     font-size: 16px !important; /* prevents iOS auto-zoom on focus */
-  }
-  #uerp-toolbar {
-    top: auto; bottom: 10px; right: 10px;
   }
 }

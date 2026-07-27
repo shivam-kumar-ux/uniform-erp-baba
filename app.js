@@ -94,17 +94,31 @@
     applyLanguage(current === 'hi' ? 'en' : 'hi');
   }
 
-  // ---------------- Floating toolbar ----------------
+  // ---------------- Header toolbar buttons ----------------
   function injectToolbar() {
-    if (document.getElementById('uerp-toolbar')) return;
-    var bar = document.createElement('div');
-    bar.id = 'uerp-toolbar';
-    bar.innerHTML =
-      '<button id="uerp-theme-btn" type="button">🌙 Dark</button>' +
-      '<button id="uerp-lang-btn" type="button">हिं</button>';
-    document.body.appendChild(bar);
-    document.getElementById('uerp-theme-btn').addEventListener('click', toggleDarkMode);
-    document.getElementById('uerp-lang-btn').addEventListener('click', toggleLanguage);
+    if (document.getElementById('uerp-theme-btn')) return;
+    var header = document.querySelector('header');
+    if (!header) return;
+
+    // Place the buttons inside the header's existing right-side container (where Log Out already lives)
+    // so they sit naturally in the flex layout instead of floating over other content.
+    var container = header.querySelector('div') || header;
+
+    var langBtn = document.createElement('button');
+    langBtn.id = 'uerp-lang-btn';
+    langBtn.type = 'button';
+    langBtn.textContent = 'हिं';
+
+    var themeBtn = document.createElement('button');
+    themeBtn.id = 'uerp-theme-btn';
+    themeBtn.type = 'button';
+    themeBtn.textContent = '🌙 Dark';
+
+    container.insertBefore(langBtn, container.firstChild);
+    container.insertBefore(themeBtn, container.firstChild);
+
+    themeBtn.addEventListener('click', toggleDarkMode);
+    langBtn.addEventListener('click', toggleLanguage);
   }
 
   // ---------------- Init on load ----------------
