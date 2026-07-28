@@ -1,11 +1,13 @@
 // UniformERP - minimal service worker
 // Purpose: satisfies "Add to Home Screen" installability requirements and provides
-// a light app-shell cache so the site opens instantly even on a slow connection.
-// It does NOT cache API calls (script.google.com) — those always go to the network,
-// so billing/inventory data is always fresh.
+// an offline fallback shell. Uses NETWORK-FIRST for everything: always tries to fetch
+// the latest version online, and only falls back to a cached copy if there's no
+// internet connection. This ensures updates to the site are always picked up immediately
+// instead of getting stuck on old cached files.
+// It never touches the Apps Script backend (script.google.com) — that's always live data.
 
-const CACHE_NAME = 'uniformerp-shell-v1';
-const SHELL_FILES = ['login.html', 'dashboard.html', 'theme.css', 'app.js', 'manifest.json'];
+const CACHE_NAME = 'uniformerp-shell-v3'; // bumped again to force any lingering old cache to clear
+const SHELL_FILES = ['login.html', 'dashboard.html', 'theme.css?v=3', 'app.js?v=3', 'manifest.json'];
 
 self.addEventListener('install', function (event) {
   event.waitUntil(
@@ -27,13 +29,24 @@ self.addEventListener('activate', function (event) {
 
 self.addEventListener('fetch', function (event) {
   const url = event.request.url;
-  // Never cache calls to the Apps Script backend — always live data
+  // Never intercept calls to the Apps Script backend — always live data
   if (url.indexOf('script.google.com') !== -1 || url.indexOf('script.googleusercontent.com') !== -1) {
     return;
   }
+
   event.respondWith(
-    caches.match(event.request).then(function (cached) {
-      return cached || fetch(event.request).catch(function () { return cached; });
-    })
+    fetch(event.request)
+      .then(function (networkResponse) {
+        // Got a fresh copy — update the cache with it for offline fallback later
+        const responseClone = networkResponse.clone();
+        caches.open(CACHE_NAME).then(function (cache) {
+          cache.put(event.request, responseClone);
+        });
+        return networkResponse;
+      })
+      .catch(function () {
+        // No internet — fall back to whatever we have cached
+        return caches.match(event.request);
+      })
   );
 });
