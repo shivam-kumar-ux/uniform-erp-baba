@@ -10,6 +10,7 @@
 
 (function () {
   'use strict';
+  console.log('[UniformERP] app.js loaded and running on:', window.location.pathname);
 
   // ---------------- Service worker (PWA) ----------------
   if ('serviceWorker' in navigator) {
@@ -96,41 +97,51 @@
 
   // ---------------- Header toolbar buttons ----------------
   function injectToolbar() {
-    if (document.getElementById('uerp-theme-btn')) return;
-    var heading = document.querySelector('header h1') || document.querySelector('h1');
-    if (!heading) return;
+    try {
+      if (document.getElementById('uerp-theme-btn')) {
+        console.log('[UniformERP] Toolbar already present, skipping.');
+        return;
+      }
+      var heading = document.querySelector('header h1') || document.querySelector('h1');
+      if (!heading) {
+        console.error('[UniformERP] injectToolbar FAILED: no <h1> found on this page at all.');
+        return;
+      }
+      console.log('[UniformERP] Found heading:', heading.textContent);
 
-    // Wrap the title + toolbar together so a flex header's space-between layout keeps
-    // them grouped on the left, instead of spreading 3 separate items apart.
-    var titleWrapper = document.createElement('div');
-    titleWrapper.style.display = 'flex';
-    titleWrapper.style.alignItems = 'center';
-    titleWrapper.style.flexWrap = 'wrap';
-    titleWrapper.style.gap = '10px';
-    heading.parentNode.insertBefore(titleWrapper, heading);
-    titleWrapper.appendChild(heading);
+      var titleWrapper = document.createElement('div');
+      titleWrapper.style.display = 'flex';
+      titleWrapper.style.alignItems = 'center';
+      titleWrapper.style.flexWrap = 'wrap';
+      titleWrapper.style.gap = '10px';
+      heading.parentNode.insertBefore(titleWrapper, heading);
+      titleWrapper.appendChild(heading);
 
-    var wrapper = document.createElement('span');
-    wrapper.id = 'uerp-toolbar';
-    wrapper.style.display = 'flex';
-    wrapper.style.gap = '6px';
+      var wrapper = document.createElement('span');
+      wrapper.id = 'uerp-toolbar';
+      wrapper.style.display = 'flex';
+      wrapper.style.gap = '6px';
 
-    var langBtn = document.createElement('button');
-    langBtn.id = 'uerp-lang-btn';
-    langBtn.type = 'button';
-    langBtn.textContent = 'हिं';
+      var langBtn = document.createElement('button');
+      langBtn.id = 'uerp-lang-btn';
+      langBtn.type = 'button';
+      langBtn.textContent = 'हिं';
 
-    var themeBtn = document.createElement('button');
-    themeBtn.id = 'uerp-theme-btn';
-    themeBtn.type = 'button';
-    themeBtn.textContent = '🌙 Dark';
+      var themeBtn = document.createElement('button');
+      themeBtn.id = 'uerp-theme-btn';
+      themeBtn.type = 'button';
+      themeBtn.textContent = '🌙 Dark';
 
-    wrapper.appendChild(themeBtn);
-    wrapper.appendChild(langBtn);
-    titleWrapper.appendChild(wrapper);
+      wrapper.appendChild(themeBtn);
+      wrapper.appendChild(langBtn);
+      titleWrapper.appendChild(wrapper);
 
-    themeBtn.addEventListener('click', toggleDarkMode);
-    langBtn.addEventListener('click', toggleLanguage);
+      themeBtn.addEventListener('click', toggleDarkMode);
+      langBtn.addEventListener('click', toggleLanguage);
+      console.log('[UniformERP] Toolbar injected successfully.', document.getElementById('uerp-theme-btn'));
+    } catch (err) {
+      console.error('[UniformERP] injectToolbar THREW AN ERROR:', err);
+    }
   }
 
   // ---------------- Mobile hamburger menu ----------------
@@ -150,10 +161,24 @@
   }
 
   // ---------------- Init on load ----------------
-  document.addEventListener('DOMContentLoaded', function () {
-    injectToolbar();
-    injectMobileNavToggle();
-    applyDarkMode(localStorage.getItem('uniformerp_dark_mode') === '1');
-    applyLanguage(localStorage.getItem('uniformerp_lang') || 'en');
-  });
+  function runInit() {
+    console.log('[UniformERP] Running init...');
+    try {
+      injectToolbar();
+      injectMobileNavToggle();
+      applyDarkMode(localStorage.getItem('uniformerp_dark_mode') === '1');
+      applyLanguage(localStorage.getItem('uniformerp_lang') || 'en');
+      console.log('[UniformERP] Init complete.');
+    } catch (err) {
+      console.error('[UniformERP] Init FAILED:', err);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runInit);
+  } else {
+    // DOMContentLoaded already fired before this script ran — init immediately instead of waiting forever
+    console.log('[UniformERP] Document already ready, running init immediately.');
+    runInit();
+  }
 })();

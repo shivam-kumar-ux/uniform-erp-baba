@@ -42,6 +42,14 @@
     font-size: 12px; color: #6b5300; margin-bottom: 16px; border-radius: 4px;
   }
 </style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e3a5f">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css?v=3">
 </head>
 <body>
 
@@ -57,6 +65,23 @@
 </nav>
 
 <div class="container">
+  <div class="card" id="templateCard">
+    <h2>Message Template</h2>
+    <p style="font-size:12px; color:#666; margin-top:-8px;">
+      Available placeholders: <code>{studentName}</code> <code>{admissionNo}</code> <code>{branch}</code>
+      <code>{totalDue}</code> <code>{billCount}</code> <code>{today}</code> <code>{clearByDate}</code>
+    </p>
+    <textarea id="templateText" rows="8" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; font-size:13px; font-family:inherit;"></textarea>
+    <div id="templateOwnerControls" style="margin-top:10px; display:none;">
+      <button class="btn-whatsapp" onclick="saveTemplate()" style="background:#2c5282;">Save Template</button>
+      <button class="btn-whatsapp" onclick="resetTemplate()" style="background:#888;">Reset to Default</button>
+    </div>
+    <div id="templateStaffNote" style="font-size:12px; color:#888; margin-top:8px; display:none;">
+      Only the Owner can change this message format. You can still send reminders below using this template.
+    </div>
+    <div id="templateMsg" style="font-size:13px; margin-top:8px; display:none;"></div>
+  </div>
+
   <div class="card">
     <div class="note-box">
       Each reminder opens a WhatsApp chat with the message ready to send — you'll need to click Send yourself inside WhatsApp for each parent. WhatsApp doesn't allow sending bulk automatic messages without a paid business API, so this is done one parent at a time.
@@ -75,6 +100,21 @@
       <div class="summary-box">Students with Dues<strong id="studentCount">-</strong></div>
       <div class="summary-box">Total Outstanding<strong id="totalOutstanding">-</strong></div>
     </div>
+    <button class="btn-whatsapp" id="startQueueBtn" onclick="startQueue()" style="background:#1e7e34; margin-bottom:14px;">▶ Start Sending Queue</button>
+
+    <div id="queuePanel" style="display:none; background:#eef6ee; border:1px solid #b7e0b7; border-radius:8px; padding:16px; margin-bottom:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <strong id="queueProgress">Sending 1 of 5</strong>
+        <button onclick="exitQueue()" style="background:none; border:none; color:#c0392b; cursor:pointer; font-size:13px;">Exit Queue</button>
+      </div>
+      <div id="queueCurrentInfo" style="font-size:14px; margin-bottom:12px;"></div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn-whatsapp" onclick="openCurrentInWhatsApp()" style="background:#1e7e34;">📲 Open WhatsApp for This Parent</button>
+        <button class="btn-whatsapp" onclick="advanceQueue(true)" style="background:#2c5282;">✓ Sent — Next Parent</button>
+        <button class="btn-whatsapp" onclick="advanceQueue(false)" style="background:#888;">Skip</button>
+      </div>
+    </div>
+
     <table>
       <thead><tr><th>Student</th><th>Admission No.</th><th>Branch</th><th>Bills Due</th><th>Total Due</th><th>WhatsApp</th></tr></thead>
       <tbody id="duesBody"><tr><td colspan="6">Loading...</td></tr></tbody>
@@ -148,30 +188,149 @@
     document.getElementById("totalOutstanding").textContent = "₹" + total.toFixed(2);
   }
 
+  let reminderTemplate = "";
+  const DEFAULT_TEMPLATE =
+    "BABA General Store — Payment Reminder\n" +
+    "Date: {today}\n\n" +
+    "Dear Parent/Guardian of {studentName} (Adm# {admissionNo}),\n\n" +
+    "This is a friendly reminder that an amount of ₹{totalDue} is due against {billCount} bill(s) at our {branch} branch.\n\n" +
+    "Kindly clear the due amount before {clearByDate}.\n\n" +
+    "Thank you,\nBABA General Store";
+
+  const isOwner = localStorage.getItem("uniformerp_role") === "Owner";
+
+  async function loadTemplate() {
+    const res = await fetch(API_URL + "?action=getReminderTemplate&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    reminderTemplate = data.success ? data.template : DEFAULT_TEMPLATE;
+    document.getElementById("templateText").value = reminderTemplate;
+
+    if (isOwner) {
+      document.getElementById("templateOwnerControls").style.display = "block";
+    } else {
+      document.getElementById("templateText").disabled = true;
+      document.getElementById("templateStaffNote").style.display = "block";
+    }
+  }
+
+  function showTemplateMsg(text, color) {
+    const el = document.getElementById("templateMsg");
+    el.textContent = text; el.style.color = color; el.style.display = "block";
+    setTimeout(function () { el.style.display = "none"; }, 3000);
+  }
+
+  async function saveTemplate() {
+    const template = document.getElementById("templateText").value;
+    const res = await fetch(API_URL + "?" + new URLSearchParams({ action: "setReminderTemplate", token: token, template: template }));
+    const data = await res.json();
+    if (data.success) {
+      reminderTemplate = template;
+      showTemplateMsg("Template saved.", "#1e7e34");
+    } else {
+      showTemplateMsg(data.message || "Failed to save.", "#c0392b");
+    }
+  }
+
+  function resetTemplate() {
+    document.getElementById("templateText").value = DEFAULT_TEMPLATE;
+  }
+
+  function fillTemplate(template, vars) {
+    let result = template;
+    Object.keys(vars).forEach(function (key) {
+      result = result.split("{" + key + "}").join(vars[key]);
+    });
+    return result;
+  }
+
+  // ---------------- Sending Queue mode ----------------
+  let queueList = [];
+  let queueIndex = 0;
+  let queueSentCount = 0;
+
+  function startQueue() {
+    if (!window.currentDues || window.currentDues.length === 0) {
+      alert("No outstanding dues to send reminders for.");
+      return;
+    }
+    queueList = window.currentDues.filter(function (d) { return !!normalizePhone(d.parentPhone); });
+    if (queueList.length === 0) {
+      alert("None of the students with dues have a phone number on file.");
+      return;
+    }
+    queueIndex = 0;
+    queueSentCount = 0;
+    document.getElementById("queuePanel").style.display = "block";
+    document.getElementById("startQueueBtn").style.display = "none";
+    showCurrentQueueItem();
+    // Automatically open WhatsApp for the very first parent right away
+    openCurrentInWhatsApp();
+  }
+
+  function showCurrentQueueItem() {
+    const d = queueList[queueIndex];
+    document.getElementById("queueProgress").textContent = "Parent " + (queueIndex + 1) + " of " + queueList.length + " (" + queueSentCount + " sent so far)";
+    document.getElementById("queueCurrentInfo").innerHTML =
+      "<strong>" + escapeHtml(d.studentName) + "</strong> (Adm# " + escapeHtml(d.admissionNo) + ") — " +
+      escapeHtml(d.branch) + " — Due ₹" + d.totalDue.toFixed(2);
+  }
+
+  function buildReminderMessage(d) {
+    const today = new Date().toLocaleDateString();
+    const clearByInput = document.getElementById("clearByDate").value;
+    const clearByDate = clearByInput ? new Date(clearByInput).toLocaleDateString() : "at your earliest convenience";
+    return fillTemplate(reminderTemplate || DEFAULT_TEMPLATE, {
+      studentName: d.studentName,
+      admissionNo: d.admissionNo,
+      branch: d.branch,
+      totalDue: d.totalDue.toFixed(2),
+      billCount: d.billCount,
+      today: today,
+      clearByDate: clearByDate
+    });
+  }
+
+  function openCurrentInWhatsApp() {
+    const d = queueList[queueIndex];
+    const phone = normalizePhone(d.parentPhone);
+    const message = buildReminderMessage(d);
+    const url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(message);
+    window.open(url, "_blank");
+  }
+
+  function advanceQueue(wasSent) {
+    if (wasSent) queueSentCount++;
+    queueIndex++;
+    if (queueIndex >= queueList.length) {
+      alert("Queue complete! " + queueSentCount + " reminder(s) sent out of " + queueList.length + ".");
+      exitQueue();
+      return;
+    }
+    showCurrentQueueItem();
+    // A fresh click just happened (the Next button), so this counts as a user gesture —
+    // safe to open the next WhatsApp tab without being blocked as a popup.
+    openCurrentInWhatsApp();
+  }
+
+  function exitQueue() {
+    document.getElementById("queuePanel").style.display = "none";
+    document.getElementById("startQueueBtn").style.display = "inline-block";
+  }
+
   function sendReminder(idx) {
     const d = window.currentDues[idx];
     const phone = normalizePhone(d.parentPhone);
     if (!phone) { alert("No phone number on file for this student."); return; }
 
-    const today = new Date().toLocaleDateString();
-    const clearByInput = document.getElementById("clearByDate").value;
-    const clearByDate = clearByInput ? new Date(clearByInput).toLocaleDateString() : "at your earliest convenience";
-
-    const message =
-      "BABA General Store — Payment Reminder\n" +
-      "Date: " + today + "\n\n" +
-      "Dear Parent/Guardian of " + d.studentName + " (Adm# " + d.admissionNo + "),\n\n" +
-      "This is a friendly reminder that an amount of ₹" + d.totalDue.toFixed(2) + " is due against " + d.billCount +
-      (d.billCount > 1 ? " bills" : " bill") + " at our " + d.branch + " branch.\n\n" +
-      "Kindly clear the due amount before " + clearByDate + ".\n\n" +
-      "Thank you,\nBABA General Store";
-
+    const message = buildReminderMessage(d);
     const url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(message);
     window.open(url, "_blank");
   }
 
+  loadTemplate();
   loadDues();
 </script>
 
+<script src="app.js?v=3"></script>
 </body>
 </html>
