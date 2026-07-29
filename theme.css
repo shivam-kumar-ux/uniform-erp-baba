@@ -135,9 +135,24 @@ body.dark-mode textarea {
 body.dark-mode .summary-box,
 body.dark-mode .student-block,
 body.dark-mode .low-row,
-body.dark-mode .scan-dropzone {
+body.dark-mode .scan-dropzone,
+body.dark-mode .kpi-card,
+body.dark-mode .student-selected,
+body.dark-mode .exchange-box,
+body.dark-mode .history-bill,
+body.dark-mode .mode-box,
+body.dark-mode #queuePanel,
+body.dark-mode .note-box {
   background: #232c3b !important;
   color: #e5e7eb !important;
+}
+body.dark-mode .tab-btn {
+  background: #2a3444 !important;
+  color: #cbd5e1 !important;
+}
+body.dark-mode .tab-btn.active {
+  background: #2c5282 !important;
+  color: #ffffff !important;
 }
 body.dark-mode nav a {
   color: #7ea6e0 !important;
@@ -152,6 +167,35 @@ body.dark-mode .student-result {
 body.dark-mode .bill-result:hover,
 body.dark-mode .student-result:hover {
   background: #26303f !important;
+}
+/* Catch-all: many pages use inline style="color:#666/#999/#888/#444/#555/#777" for muted
+   hint/note text. These read fine on a light background but vanish on a dark one, so we
+   brighten them specifically when dark mode is active. */
+body.dark-mode [style*="color:#666"],
+body.dark-mode [style*="color: #666"],
+body.dark-mode [style*="color:#999"],
+body.dark-mode [style*="color: #999"],
+body.dark-mode [style*="color:#888"],
+body.dark-mode [style*="color: #888"],
+body.dark-mode [style*="color:#444"],
+body.dark-mode [style*="color: #444"],
+body.dark-mode [style*="color:#555"],
+body.dark-mode [style*="color: #555"],
+body.dark-mode [style*="color:#777"],
+body.dark-mode [style*="color: #777"] {
+  color: #b7c2d0 !important;
+}
+/* Safety net: force a readable base text color inside light-mode containers, in case any
+   page has a stray light-colored text mistake. More specific rules (badges, buttons with
+   their own paired colors) still win over this since they have higher CSS specificity. */
+body:not(.dark-mode) .card,
+body:not(.dark-mode) .kpi-card,
+body:not(.dark-mode) .summary-box,
+body:not(.dark-mode) .student-block,
+body:not(.dark-mode) .receipt-card,
+body:not(.dark-mode) .login-box,
+body:not(.dark-mode) .modal-box {
+  color: #222222;
 }
 
 /* ---------------- Mobile hamburger menu ---------------- */
