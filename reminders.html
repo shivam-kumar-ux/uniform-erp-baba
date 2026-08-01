@@ -49,7 +49,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="theme.css?v=4">
+<link rel="stylesheet" href="theme.css?v=5">
+<script src="app.js?v=5"></script>
 </head>
 <body>
 
@@ -88,11 +89,7 @@
     </div>
     <div class="toolbar">
       <div><label>Branch</label>
-        <select id="branchFilter" onchange="loadDues()">
-          <option value="">All Branches</option>
-          <option value="Shahpur">Shahpur</option>
-          <option value="Telaiya Dam">Telaiya Dam</option>
-        </select>
+        <select id="branchFilter" onchange="loadDues()"></select>
       </div>
       <div><label>Clear Due Before</label><input id="clearByDate" type="date"></div>
     </div>
@@ -328,9 +325,10 @@
   }
 
   loadTemplate();
-  loadDues();
+  uerpLoadBranchDropdown(API_URL, token, "branchFilter", true).then(function () {
+    loadDues();
+  });
 </script>
 
-<script src="app.js?v=4"></script>
 </body>
 </html>

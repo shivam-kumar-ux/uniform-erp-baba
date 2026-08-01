@@ -44,7 +44,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="theme.css?v=4">
+<link rel="stylesheet" href="theme.css?v=5">
+<script src="app.js?v=5"></script>
 </head>
 <body>
 
@@ -77,11 +78,7 @@
       <div class="summary-box">Potential Profit<strong id="totalPotentialProfit">-</strong></div>
     </div>
     <div class="toolbar">
-      <select id="branchFilter" onchange="loadInventory()">
-        <option value="">All Branches</option>
-        <option value="Shahpur">Shahpur</option>
-        <option value="Telaiya Dam">Telaiya Dam</option>
-      </select>
+      <select id="branchFilter" onchange="loadInventory()"></select>
       <input id="searchBox" placeholder="Search product name..." oninput="renderTable()">
       <label style="font-size:13px;"><input type="checkbox" id="lowOnly" onchange="renderTable()"> Show low stock only</label>
     </div>
@@ -164,9 +161,10 @@
     document.getElementById("totalPotentialProfit").textContent = "₹" + (totalSellingValue - totalBuyingValue).toFixed(2);
   }
 
-  loadInventory();
+  uerpLoadBranchDropdown(API_URL, token, "branchFilter", true).then(function () {
+    loadInventory();
+  });
 </script>
 
-<script src="app.js?v=4"></script>
 </body>
 </html>

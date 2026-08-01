@@ -6,8 +6,8 @@
 // instead of getting stuck on old cached files.
 // It never touches the Apps Script backend (script.google.com) — that's always live data.
 
-const CACHE_NAME = 'uniformerp-shell-v4';
-const SHELL_FILES = ['login.html', 'dashboard.html', 'theme.css?v=4', 'app.js?v=4', 'manifest.json'];
+const CACHE_NAME = 'uniformerp-shell-v5';
+const SHELL_FILES = ['login.html', 'dashboard.html', 'theme.css?v=5', 'app.js?v=5', 'manifest.json'];
 
 self.addEventListener('install', function (event) {
   event.waitUntil(

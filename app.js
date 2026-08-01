@@ -240,6 +240,59 @@
     });
   }
 
+  // ---------------- Shared branch dropdown loader (with staff branch-locking) ----------------
+  // Pages call window.uerpLoadBranchDropdown(apiUrl, token, selectId, includeAllOption).
+  // Owner: sees every active branch, free to pick any.
+  // Staff assigned to one specific branch: dropdown is locked to just that branch.
+  // Staff assigned to "Both": sees every active branch, free to pick (same as Owner).
+  async function uerpLoadBranchDropdown(apiUrl, token, selectId, includeAllOption) {
+    var select = document.getElementById(selectId);
+    if (!select) return;
+
+    try {
+      var res = await fetch(apiUrl + "?action=listBranches&token=" + encodeURIComponent(token));
+      var data = await res.json();
+      if (!data.success) {
+        console.error('[UniformERP] Failed to load branches:', data.message);
+        return;
+      }
+      var branches = data.data.filter(function (b) { return b.Status === 'Active'; });
+
+      var role = localStorage.getItem('uniformerp_role');
+      var userBranch = localStorage.getItem('uniformerp_branch');
+
+      select.innerHTML = '';
+
+      var isLockedToOneBranch = role !== 'Owner' && userBranch && userBranch !== 'Both' && userBranch !== '';
+
+      if (isLockedToOneBranch) {
+        var lockedOpt = document.createElement('option');
+        lockedOpt.value = userBranch;
+        lockedOpt.textContent = userBranch;
+        select.appendChild(lockedOpt);
+        select.disabled = true;
+        select.title = 'Locked to your assigned branch';
+        return;
+      }
+
+      if (includeAllOption) {
+        var allOpt = document.createElement('option');
+        allOpt.value = '';
+        allOpt.textContent = 'All Branches';
+        select.appendChild(allOpt);
+      }
+      branches.forEach(function (b) {
+        var opt = document.createElement('option');
+        opt.value = b.BranchName;
+        opt.textContent = b.BranchName;
+        select.appendChild(opt);
+      });
+    } catch (err) {
+      console.error('[UniformERP] uerpLoadBranchDropdown error:', err);
+    }
+  }
+  window.uerpLoadBranchDropdown = uerpLoadBranchDropdown;
+
   // ---------------- Init on load ----------------
   function runInit() {
     console.log('[UniformERP] Running init...');

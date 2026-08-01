@@ -50,7 +50,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="theme.css?v=4">
+<link rel="stylesheet" href="theme.css?v=5">
+<script src="app.js?v=5"></script>
 </head>
 <body>
 
@@ -78,11 +79,7 @@
         </select>
       </div>
       <div><label>Branch</label>
-        <select id="branch">
-          <option value="Shahpur">Shahpur</option>
-          <option value="Telaiya Dam">Telaiya Dam</option>
-          <option value="Both">Both</option>
-        </select>
+        <select id="branch"></select>
       </div>
     </div>
     <button class="btn-primary" onclick="addUser()">Create User</button>
@@ -187,9 +184,14 @@
     if (data.success) showMsg("Password updated for " + name, "success"); else showMsg(data.message, "error");
   }
 
+  uerpLoadBranchDropdown(API_URL, token, "branch", false).then(function () {
+    // This page assigns a branch TO a new user, so also offer "Both" for multi-branch staff
+    const bothOpt = document.createElement("option");
+    bothOpt.value = "Both"; bothOpt.textContent = "Both";
+    document.getElementById("branch").appendChild(bothOpt);
+  });
   loadUsers();
 </script>
 
-<script src="app.js?v=4"></script>
 </body>
 </html>

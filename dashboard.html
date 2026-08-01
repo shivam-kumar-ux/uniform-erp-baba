@@ -41,7 +41,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="theme.css?v=4">
+<link rel="stylesheet" href="theme.css?v=5">
+<script src="app.js?v=5"></script>
 </head>
 <body>
 
@@ -65,6 +66,7 @@
   <a href="students.html" id="navStudents">Students</a>
   <a href="products.html" id="navProducts">Products</a>
   <a href="schools.html" id="navSchools">Schools</a>
+  <a href="branches.html" id="navBranches">Branches</a>
   <a href="suppliers.html" id="navSuppliers">Suppliers</a>
   <a href="colours-sizes.html" id="navColoursSizes">Colours/Sizes</a>
   <a href="users.html" id="navUsers">User Management</a>
@@ -135,7 +137,7 @@
 
   // Hide Owner-only pages from Staff so they don't hit permission errors
   if (localStorage.getItem("uniformerp_role") !== "Owner") {
-    ["navUsers", "navLogs", "navReports", "navStudents", "navProducts", "navSchools", "navSuppliers", "navColoursSizes"].forEach(function (id) {
+    ["navUsers", "navLogs", "navReports", "navStudents", "navProducts", "navSchools", "navSuppliers", "navColoursSizes", "navBranches"].forEach(function (id) {
       document.getElementById(id).style.display = "none";
     });
   }
@@ -258,6 +260,5 @@
   loadRecentBills();
 </script>
 
-<script src="app.js?v=4"></script>
 </body>
 </html>

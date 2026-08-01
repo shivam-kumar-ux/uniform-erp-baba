@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BABA General Store - Branches</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e3a5f">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css?v=5">
+<script src="app.js?v=5"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; }
+  header {
+    background: #1e3a5f; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header button {
+    background: #c0392b; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; margin-left: 12px; font-size: 13px;
+  }
+  nav { max-width: 800px; margin: 16px auto 0; padding: 0 16px; font-size: 13px; }
+  nav a { color: #2c5282; text-decoration: none; margin-right: 16px; }
+  .container { max-width: 800px; margin: 16px auto 24px; padding: 0 16px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
+  .add-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .add-row input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+  .add-row button {
+    background: #2c5282; color: white; border: none; padding: 8px 16px;
+    border-radius: 4px; cursor: pointer; font-size: 14px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+  th { color: #666; font-weight: 600; }
+  .status-active { color: #1e7e34; font-weight: 600; }
+  .status-inactive { color: #c0392b; font-weight: 600; }
+  .link-btn { background: none; border: none; color: #2c5282; cursor: pointer; font-size: 13px; padding: 0; }
+  #msg { font-size: 13px; margin-top: 10px; display: none; }
+  #msg.error { color: #c0392b; }
+  #msg.success { color: #1e7e34; }
+  .note-box {
+    background: #eef3fa; border-left: 4px solid #2c5282; padding: 10px 14px;
+    font-size: 12px; color: #444; margin-bottom: 16px; border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><strong>BABA General Store</strong> — Branches</h1>
+  <div><button onclick="logout()">Log Out</button></div>
+</header>
+
+<nav>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="users.html">User Management</a>
+</nav>
+
+<div class="container">
+  <div class="card">
+    <div class="note-box">
+      Add every shop location here. New branches immediately become available in Billing, Purchase Entry, Inventory, Finance, Reports, and when assigning staff — no code changes needed.
+    </div>
+    <h2>Add New Branch</h2>
+    <div class="add-row">
+      <input id="branchInput" placeholder="e.g. Hazaribagh">
+      <button onclick="addBranch()">Add</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>All Branches</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="branchesBody"><tr><td colspan="3">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
+  const token = localStorage.getItem("uniformerp_token");
+
+  if (!token) window.location.href = "login.html";
+  if (localStorage.getItem("uniformerp_role") !== "Owner") {
+    alert("This page is only accessible to the Owner.");
+    window.location.href = "dashboard.html";
+  }
+
+  function logout() { localStorage.clear(); window.location.href = "login.html"; }
+
+  function showMsg(text, type) {
+    const el = document.getElementById("msg");
+    el.textContent = text; el.className = type; el.style.display = "block";
+    setTimeout(function () { el.style.display = "none"; }, 3500);
+  }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  async function loadBranches() {
+    const res = await fetch(API_URL + "?action=listBranches&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    if (!data.success) { showMsg(data.message, "error"); return; }
+
+    const tbody = document.getElementById("branchesBody");
+    tbody.innerHTML = "";
+    data.data.forEach(function (b) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + escapeHtml(b.BranchName) + "</td>" +
+        "<td class='" + (b.Status === "Active" ? "status-active" : "status-inactive") + "'>" + b.Status + "</td>" +
+        "<td><button class='link-btn' onclick=\"toggleStatus('" + b.BranchID + "')\">" + (b.Status === "Active" ? "Deactivate" : "Activate") + "</button></td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function addBranch() {
+    const name = document.getElementById("branchInput").value.trim();
+    if (!name) { showMsg("Enter a branch name", "error"); return; }
+    const res = await fetch(API_URL + "?action=addBranch&token=" + encodeURIComponent(token) + "&branchName=" + encodeURIComponent(name));
+    const data = await res.json();
+    if (data.success) {
+      showMsg("Branch added.", "success");
+      document.getElementById("branchInput").value = "";
+      loadBranches();
+    } else {
+      showMsg(data.message || "Failed to add branch.", "error");
+    }
+  }
+
+  async function toggleStatus(branchId) {
+    const res = await fetch(API_URL + "?action=toggleBranchStatus&token=" + encodeURIComponent(token) + "&branchId=" + encodeURIComponent(branchId));
+    const data = await res.json();
+    if (data.success) loadBranches(); else showMsg(data.message, "error");
+  }
+
+  loadBranches();
+</script>
+
+</body>
+</html>

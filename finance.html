@@ -55,7 +55,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="theme.css?v=4">
+<link rel="stylesheet" href="theme.css?v=5">
+<script src="app.js?v=5"></script>
 </head>
 <body>
 
@@ -77,11 +78,7 @@
     <div class="toolbar">
       <div><label>Date</label><input id="closingDate" type="date"></div>
       <div><label>Branch</label>
-        <select id="closingBranch">
-          <option value="">All Branches</option>
-          <option value="Shahpur">Shahpur</option>
-          <option value="Telaiya Dam">Telaiya Dam</option>
-        </select>
+        <select id="closingBranch"></select>
       </div>
       <button class="link-btn" onclick="loadClosing()">Refresh</button>
     </div>
@@ -228,10 +225,11 @@
     }
   }
 
-  loadClosing();
+  uerpLoadBranchDropdown(API_URL, token, "closingBranch", true).then(function () {
+    loadClosing();
+  });
   loadDues();
 </script>
 
-<script src="app.js?v=4"></script>
 </body>
 </html>

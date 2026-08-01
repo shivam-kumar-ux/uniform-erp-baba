@@ -45,6 +45,21 @@
   nav { max-width: 1000px; margin: 16px auto 0; padding: 0 16px; font-size: 13px; }
   nav a { color: #2c5282; text-decoration: none; margin-right: 16px; }
   nav a:hover { text-decoration: underline; }
+  .import-dropzone {
+    border: 2px dashed #2c5282; border-radius: 8px; padding: 20px; text-align: center;
+    background: #f8fafc; cursor: pointer; margin-bottom: 14px;
+  }
+  .import-dropzone:hover { background: #eef3fa; }
+  .import-dropzone input[type="file"] { display: none; }
+  .btn-outline {
+    background: white; color: #2c5282; border: 1px solid #2c5282; padding: 8px 16px;
+    border-radius: 4px; font-size: 13px; cursor: pointer; margin-right: 10px;
+  }
+  .import-table th, .import-table td { padding: 6px; font-size: 12px; }
+  .import-table select, .import-table input { width: 100%; padding: 5px; font-size: 12px; }
+  .import-table .unmatched { border: 1px solid #c0392b; background: #fdecea; }
+  .import-summary { font-size: 13px; margin-bottom: 12px; }
+  .btn-remove-row { background: none; border: none; color: #c0392b; cursor: pointer; font-size: 12px; }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e3a5f">
@@ -53,7 +68,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="theme.css?v=4">
+<link rel="stylesheet" href="theme.css?v=5">
+<script src="app.js?v=5"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -69,6 +86,32 @@
 </nav>
 
 <div class="container">
+  <div class="card">
+    <h2>Bulk Import Students from Excel</h2>
+    <p style="font-size:13px; color:#666; margin-top:-8px;">
+      Download the template, fill in your students (one row each), then upload it here. You'll get a chance to check and fix anything before it's actually saved.
+    </p>
+    <button class="btn-outline" onclick="downloadTemplate()">⬇ Download Excel Template</button>
+
+    <div class="import-dropzone" onclick="document.getElementById('importFile').click()" style="margin-top:14px;">
+      <input type="file" id="importFile" accept=".xlsx,.xls,.csv" onchange="handleImportFile(event)">
+      <div id="importDropzoneText">📄 Click to select your filled-in Excel file</div>
+    </div>
+    <div id="importMsg" style="font-size:13px; margin-top:6px; display:none;"></div>
+
+    <div id="importReviewSection" style="display:none; margin-top:18px;">
+      <h3 style="font-size:14px; color:#1e3a5f;">Check &amp; Confirm Before Importing</h3>
+      <div class="import-summary" id="importSummary"></div>
+      <table class="import-table">
+        <thead><tr><th>Admission No.</th><th>Name</th><th>School</th><th>Class</th><th>Section</th><th>Session</th><th>Parent Phone</th><th></th></tr></thead>
+        <tbody id="importReviewBody"></tbody>
+      </table>
+      <button class="btn-primary" onclick="importAllStudents()">Import All Students</button>
+      <button class="btn-primary" style="background:#888;" onclick="discardImport()">Discard</button>
+      <div id="importResultMsg" style="font-size:13px; margin-top:10px; display:none;"></div>
+    </div>
+  </div>
+
   <div class="card">
     <h2 id="formTitle">Add Student</h2>
     <div class="form-grid">
@@ -137,12 +180,16 @@
     });
   }
 
+  let schoolsList = [];
+  let sessionsList = [];
+
   async function loadSchoolsDropdown() {
     const res = await fetch(API_URL + "?action=listSchools&token=" + encodeURIComponent(token));
     const data = await res.json();
     if (!data.success) { showMsg(data.message, "error"); return; }
+    schoolsList = data.data.filter(function (s) { return s.Status === "Active"; });
     const select = document.getElementById("schoolId");
-    data.data.filter(function (s) { return s.Status === "Active"; }).forEach(function (s) {
+    schoolsList.forEach(function (s) {
       const opt = document.createElement("option");
       opt.value = s.SchoolID;
       opt.textContent = s.SchoolName + " (" + s.Branch + ")";
@@ -154,9 +201,10 @@
     const res = await fetch(API_URL + "?action=listSessions&token=" + encodeURIComponent(token));
     const data = await res.json();
     if (!data.success) { showMsg(data.message, "error"); return; }
+    sessionsList = data.data;
     const select = document.getElementById("sessionId");
     select.innerHTML = "<option value=''>-- Select --</option>";
-    data.data.forEach(function (s) {
+    sessionsList.forEach(function (s) {
       const opt = document.createElement("option");
       opt.value = s.SessionID;
       opt.textContent = s.SessionName;
@@ -314,6 +362,185 @@
     document.getElementById("historyModalOverlay").style.display = "none";
   }
 
+  // ---------------- Bulk Import from Excel ----------------
+  function downloadTemplate() {
+    const wsData = [
+      ["Admission No.", "Student Name", "School Name", "Class", "Section", "Academic Session", "Parent WhatsApp Number"],
+      ["1001", "Ravi Kumar", "DAV Public School", "6", "A", "2026-27", "9876543210"],
+      ["1002", "Priya Sharma", "DAV Public School", "7", "B", "2026-27", "9876500000"]
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws["!cols"] = [{ wch: 14 }, { wch: 20 }, { wch: 24 }, { wch: 8 }, { wch: 8 }, { wch: 16 }, { wch: 20 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Students");
+    XLSX.writeFile(wb, "UniformERP_Student_Import_Template.xlsx");
+  }
+
+  function showImportMsg(text, type) {
+    const el = document.getElementById("importMsg");
+    el.textContent = text; el.className = type; el.style.display = "block";
+  }
+
+  function fuzzyMatch(list, nameField, idField, guess) {
+    if (!guess) return null;
+    const g = String(guess).toLowerCase().trim();
+    let match = list.find(function (x) { return String(x[nameField]).toLowerCase().trim() === g; });
+    if (!match) {
+      match = list.find(function (x) {
+        const name = String(x[nameField]).toLowerCase();
+        return name.indexOf(g) !== -1 || g.indexOf(name) !== -1;
+      });
+    }
+    return match ? match[idField] : null;
+  }
+
+  function getField(row, keys) {
+    // Header text might vary slightly in casing/spacing — check each candidate key
+    for (let i = 0; i < keys.length; i++) {
+      const foundKey = Object.keys(row).find(function (k) { return k.trim().toLowerCase() === keys[i].toLowerCase(); });
+      if (foundKey && row[foundKey] !== undefined && row[foundKey] !== "") return String(row[foundKey]).trim();
+    }
+    return "";
+  }
+
+  let importRows = [];
+
+  function handleImportFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    document.getElementById("importDropzoneText").textContent = "Reading " + file.name + "...";
+    document.getElementById("importMsg").style.display = "none";
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+        if (rows.length === 0) {
+          showImportMsg("No rows found in that file.", "error");
+          document.getElementById("importDropzoneText").textContent = "📄 Click to select your filled-in Excel file";
+          return;
+        }
+
+        importRows = rows.map(function (row) {
+          const schoolGuess = getField(row, ["School Name", "School"]);
+          const sessionGuess = getField(row, ["Academic Session", "Session"]);
+          return {
+            admissionNo: getField(row, ["Admission No.", "Admission No", "AdmissionNo"]),
+            studentName: getField(row, ["Student Name", "Name"]),
+            schoolGuess: schoolGuess,
+            matchedSchoolId: fuzzyMatch(schoolsList, "SchoolName", "SchoolID", schoolGuess),
+            className: getField(row, ["Class"]),
+            section: getField(row, ["Section"]),
+            sessionGuess: sessionGuess,
+            matchedSessionId: fuzzyMatch(sessionsList, "SessionName", "SessionID", sessionGuess),
+            parentPhone: getField(row, ["Parent WhatsApp Number", "Parent Phone", "Phone"])
+          };
+        });
+
+        renderImportReview();
+        document.getElementById("importDropzoneText").textContent = "📄 Click to select your filled-in Excel file";
+        event.target.value = "";
+      } catch (err) {
+        showImportMsg("Could not read that file. Make sure it's a valid Excel file (.xlsx).", "error");
+        document.getElementById("importDropzoneText").textContent = "📄 Click to select your filled-in Excel file";
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function buildSelectOptions(list, valueField, labelField, selectedValue) {
+    let html = "<option value=''>-- Select --</option>";
+    list.forEach(function (item) {
+      const sel = item[valueField] === selectedValue ? " selected" : "";
+      html += "<option value='" + item[valueField] + "'" + sel + ">" + escapeHtml(item[labelField]) + "</option>";
+    });
+    return html;
+  }
+
+  function renderImportReview() {
+    const tbody = document.getElementById("importReviewBody");
+    tbody.innerHTML = "";
+    let matchedCount = 0;
+
+    importRows.forEach(function (r, idx) {
+      if (r.matchedSchoolId && r.matchedSessionId) matchedCount++;
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td><input class='imp-admission' value=\"" + escapeHtml(r.admissionNo) + "\"></td>" +
+        "<td><input class='imp-name' value=\"" + escapeHtml(r.studentName) + "\"></td>" +
+        "<td><select class='imp-school " + (r.matchedSchoolId ? "" : "unmatched") + "'>" + buildSelectOptions(schoolsList, "SchoolID", "SchoolName", r.matchedSchoolId) + "</select>" +
+          (r.matchedSchoolId ? "" : "<div style='font-size:10px;color:#c0392b;'>Sheet said: " + escapeHtml(r.schoolGuess) + "</div>") + "</td>" +
+        "<td><input class='imp-class' value=\"" + escapeHtml(r.className) + "\"></td>" +
+        "<td><input class='imp-section' value=\"" + escapeHtml(r.section) + "\"></td>" +
+        "<td><select class='imp-session " + (r.matchedSessionId ? "" : "unmatched") + "'>" + buildSelectOptions(sessionsList, "SessionID", "SessionName", r.matchedSessionId) + "</select>" +
+          (r.matchedSessionId ? "" : "<div style='font-size:10px;color:#c0392b;'>Sheet said: " + escapeHtml(r.sessionGuess) + "</div>") + "</td>" +
+        "<td><input class='imp-phone' value=\"" + escapeHtml(r.parentPhone) + "\"></td>" +
+        "<td><button class='btn-remove-row' onclick='this.closest(\"tr\").remove()'>Remove</button></td>";
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById("importSummary").textContent =
+      importRows.length + " row(s) found — " + matchedCount + " matched automatically, " +
+      (importRows.length - matchedCount) + " need a manual School/Session pick (highlighted in red).";
+    document.getElementById("importReviewSection").style.display = "block";
+    document.getElementById("importReviewSection").scrollIntoView({ behavior: "smooth" });
+  }
+
+  function discardImport() {
+    importRows = [];
+    document.getElementById("importReviewSection").style.display = "none";
+    document.getElementById("importReviewBody").innerHTML = "";
+  }
+
+  async function importAllStudents() {
+    const rows = document.querySelectorAll("#importReviewBody tr");
+    if (rows.length === 0) { showImportResultMsg("No rows to import.", "error"); return; }
+
+    let successCount = 0, failCount = 0, failMessages = [];
+
+    for (const row of rows) {
+      const admissionNo = row.querySelector(".imp-admission").value.trim();
+      const studentName = row.querySelector(".imp-name").value.trim();
+      const schoolId = row.querySelector(".imp-school").value;
+      const className = row.querySelector(".imp-class").value.trim();
+      const section = row.querySelector(".imp-section").value.trim();
+      const sessionId = row.querySelector(".imp-session").value;
+      const parentPhone = row.querySelector(".imp-phone").value.trim();
+
+      if (!admissionNo || !studentName || !schoolId || !sessionId) {
+        failCount++;
+        failMessages.push((studentName || admissionNo || "A row") + " — missing required field(s), skipped.");
+        continue;
+      }
+
+      const params = new URLSearchParams({
+        action: "addStudent", token: token, admissionNo: admissionNo, studentName: studentName,
+        schoolId: schoolId, className: className, section: section, sessionId: sessionId, parentPhone: parentPhone
+      });
+      const res = await fetch(API_URL + "?" + params.toString());
+      const data = await res.json();
+      if (data.success) successCount++;
+      else { failCount++; failMessages.push(studentName + " — " + (data.message || "unknown error")); }
+    }
+
+    if (failCount === 0) {
+      showImportResultMsg(successCount + " student(s) imported successfully.", "success");
+      setTimeout(discardImport, 1800);
+    } else {
+      showImportResultMsg(successCount + " imported, " + failCount + " failed: " + failMessages.slice(0, 5).join("; "), "error");
+    }
+    loadStudents();
+  }
+
+  function showImportResultMsg(text, type) {
+    const el = document.getElementById("importResultMsg");
+    el.textContent = text; el.className = type; el.style.display = "block";
+  }
+
   loadSchoolsDropdown();
   loadSessionsDropdown();
   loadStudents();
@@ -339,6 +566,5 @@
   .status-Due { background: #fdecea; color: #c0392b; }
 </style>
 
-<script src="app.js?v=4"></script>
 </body>
 </html>
