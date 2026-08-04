@@ -86,6 +86,15 @@
 </nav>
 
 <div class="container">
+  <div class="card" id="duplicateCard">
+    <h2>Duplicate Students</h2>
+    <p style="font-size:13px; color:#666; margin-top:-8px;">
+      New duplicates can no longer be created — every add/edit is checked automatically. Use this to find and clean up any duplicates that already existed before that check was added.
+    </p>
+    <button class="btn-outline" onclick="findDuplicates()">🔍 Scan for Duplicates</button>
+    <div id="duplicateResults" style="margin-top:14px;"></div>
+  </div>
+
   <div class="card">
     <h2>Bulk Import Students from Excel</h2>
     <p style="font-size:13px; color:#666; margin-top:-8px;">
@@ -111,8 +120,9 @@
         <thead><tr><th>Admission No.</th><th>Name</th><th>School</th><th>Class</th><th>Section</th><th>Session</th><th>Parent Phone</th><th></th></tr></thead>
         <tbody id="importReviewBody"></tbody>
       </table>
-      <button class="btn-primary" onclick="importAllStudents()">Import All Students</button>
+      <button class="btn-primary" id="importAllBtn" onclick="importAllStudents()">Import All Students</button>
       <button class="btn-primary" style="background:#888;" onclick="discardImport()">Discard</button>
+      <p style="font-size:12px; color:#888; margin-top:8px;">Large lists (100+ students) take a few minutes to import — please keep this tab open until it finishes. Progress shows on the button above.</p>
       <div id="importResultMsg" style="font-size:13px; margin-top:10px; display:none;"></div>
     </div>
   </div>
@@ -514,13 +524,25 @@
     document.getElementById("importReviewBody").innerHTML = "";
   }
 
+  function sleep(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+
   async function importAllStudents() {
     const rows = document.querySelectorAll("#importReviewBody tr");
     if (rows.length === 0) { showImportResultMsg("No rows to import.", "error"); return; }
 
+    const importBtn = document.getElementById("importAllBtn");
+    importBtn.disabled = true;
+
     let successCount = 0, failCount = 0, failMessages = [];
+    const total = rows.length;
+    let processed = 0;
 
     for (const row of rows) {
+      processed++;
+      importBtn.textContent = "Importing " + processed + " of " + total + "...";
+
       const admissionNo = row.querySelector(".imp-admission").value.trim();
       const studentName = row.querySelector(".imp-name").value.trim();
       const schoolId = row.querySelector(".imp-school").value;
@@ -535,21 +557,41 @@
         continue;
       }
 
-      const params = new URLSearchParams({
-        action: "addStudent", token: token, admissionNo: admissionNo, studentName: studentName,
-        schoolId: schoolId, className: className, section: section, sessionId: sessionId, parentPhone: parentPhone
-      });
-      const res = await fetch(API_URL + "?" + params.toString());
-      const data = await res.json();
-      if (data.success) successCount++;
-      else { failCount++; failMessages.push(studentName + " — " + (data.message || "unknown error")); }
+      // Each row is wrapped in its own try/catch: a single network hiccup or a rate-limit
+      // response from Google no longer kills the rest of the batch — it's logged and the
+      // loop moves on to the next student. A short pause between requests also helps avoid
+      // triggering that rate-limiting in the first place when importing large lists.
+      try {
+        const params = new URLSearchParams({
+          action: "addStudent", token: token, admissionNo: admissionNo, studentName: studentName,
+          schoolId: schoolId, className: className, section: section, sessionId: sessionId, parentPhone: parentPhone
+        });
+        const res = await fetch(API_URL + "?" + params.toString());
+        const data = await res.json();
+        if (data.success) successCount++;
+        else { failCount++; failMessages.push(studentName + " — " + (data.message || "unknown error")); }
+      } catch (err) {
+        failCount++;
+        failMessages.push(studentName + " — network/server error (" + err.message + "), will need to be retried.");
+      }
+
+      if (processed % 15 === 0) await sleep(800); // brief pause every 15 rows to stay well under rate limits
+      else await sleep(150);
     }
+
+    importBtn.disabled = false;
+    importBtn.textContent = "Import All Students";
 
     if (failCount === 0) {
       showImportResultMsg(successCount + " student(s) imported successfully.", "success");
       setTimeout(discardImport, 1800);
     } else {
-      showImportResultMsg(successCount + " imported, " + failCount + " failed: " + failMessages.slice(0, 5).join("; "), "error");
+      showImportResultMsg(
+        successCount + " imported, " + failCount + " failed/skipped. " +
+        "Already-imported students are safe to leave in the sheet — re-uploading the same file will automatically skip them as duplicates and only retry the failed ones. " +
+        "First few issues: " + failMessages.slice(0, 8).join("; "),
+        "error"
+      );
     }
     loadStudents();
   }
@@ -557,6 +599,51 @@
   function showImportResultMsg(text, type) {
     const el = document.getElementById("importResultMsg");
     el.textContent = text; el.className = type; el.style.display = "block";
+  }
+
+  // ---------------- Duplicate detection & cleanup ----------------
+  async function findDuplicates() {
+    const container = document.getElementById("duplicateResults");
+    container.innerHTML = "Scanning...";
+
+    const res = await fetch(API_URL + "?action=findDuplicateStudents&token=" + encodeURIComponent(token));
+    const data = await res.json();
+    if (!data.success) { container.innerHTML = "<p style='color:#c0392b;'>" + escapeHtml(data.message) + "</p>"; return; }
+
+    if (data.data.length === 0) {
+      container.innerHTML = "<p style='color:#1e7e34;'>No duplicates found. Your student list is clean. 🎉</p>";
+      return;
+    }
+
+    let html = "<p style='color:#c0392b; font-weight:600;'>" + data.data.length + " duplicate group(s) found:</p>";
+    data.data.forEach(function (group, groupIdx) {
+      html += "<div style='border:1px solid #eee; border-radius:6px; padding:10px; margin-bottom:10px;'>" +
+        "<div style='font-size:13px; font-weight:600; margin-bottom:6px;'>" +
+        escapeHtml(group[0].SchoolName) + " — Admission No. " + escapeHtml(group[0].AdmissionNo) + "</div>";
+      group.forEach(function (st, idx) {
+        html += "<div style='display:flex; justify-content:space-between; align-items:center; padding:4px 0; font-size:13px;'>" +
+          "<span>" + escapeHtml(st.StudentName) + " — Class " + escapeHtml(st.ClassName) + escapeHtml(st.Section) +
+          " — <span style='color:" + (st.Status === "Active" ? "#1e7e34" : "#c0392b") + ";'>" + st.Status + "</span></span>" +
+          (st.Status === "Active"
+            ? "<button class='link-btn' onclick=\"deactivateDuplicate('" + st.StudentID + "')\">Deactivate this one</button>"
+            : "") +
+          "</div>";
+      });
+      html += "</div>";
+    });
+    container.innerHTML = html;
+  }
+
+  async function deactivateDuplicate(studentId) {
+    if (!confirm("Deactivate this duplicate record? Its history stays intact, but it will no longer appear as an active student.")) return;
+    const res = await fetch(API_URL + "?action=toggleStudentStatus&token=" + encodeURIComponent(token) + "&studentId=" + encodeURIComponent(studentId));
+    const data = await res.json();
+    if (data.success) {
+      findDuplicates();
+      loadStudents();
+    } else {
+      alert(data.message || "Failed to deactivate.");
+    }
   }
 
   loadSchoolsDropdown();
