@@ -327,9 +327,11 @@
       return i.ProductID === productId && i.ColourID === colourId && i.SizeID === sizeId;
     });
     document.getElementById("stockNote").textContent = match ? ("Available stock: " + match.CurrentStock) : "Available stock: 0";
-    // Auto-fill the price from the selling price set during Purchase Entry (still editable if needed)
+    // Auto-fill the price from the selling price set in Purchase Entry / Inventory (still editable if needed)
     if (match && Number(match.SellingPrice) > 0) {
       document.getElementById("itemPrice").value = match.SellingPrice;
+    } else if (match) {
+      document.getElementById("stockNote").textContent += " — no selling price set yet, please enter one manually (or set it on the Inventory page for next time)";
     }
   }
 

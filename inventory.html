@@ -83,8 +83,8 @@
       <label style="font-size:13px;"><input type="checkbox" id="lowOnly" onchange="renderTable()"> Show low stock only</label>
     </div>
     <table>
-      <thead><tr><th>Product</th><th>Colour</th><th>Size</th><th>Branch</th><th>Stock</th><th>Buying Price</th><th>Selling Price</th><th>Stock Value (Cost)</th><th>Status</th></tr></thead>
-      <tbody id="inventoryBody"><tr><td colspan="9">Loading...</td></tr></tbody>
+      <thead><tr><th>Product</th><th>Colour</th><th>Size</th><th>Branch</th><th>Stock</th><th>Buying Price</th><th>Selling Price</th><th>Stock Value (Cost)</th><th>Status</th><th id="invActionsHeader" style="display:none;">Actions</th></tr></thead>
+      <tbody id="inventoryBody"><tr><td colspan="10">Loading...</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -118,6 +118,9 @@
     renderTable();
   }
 
+  const isOwner = localStorage.getItem("uniformerp_role") === "Owner";
+  if (isOwner) document.getElementById("invActionsHeader").style.display = "";
+
   function renderTable() {
     const search = document.getElementById("searchBox").value.trim().toLowerCase();
     const lowOnly = document.getElementById("lowOnly").checked;
@@ -130,7 +133,7 @@
     const tbody = document.getElementById("inventoryBody");
     tbody.innerHTML = "";
     if (rows.length === 0) {
-      tbody.innerHTML = "<tr><td colspan='9'>No matching stock records.</td></tr>";
+      tbody.innerHTML = "<tr><td colspan='10'>No matching stock records.</td></tr>";
     } else {
       rows.forEach(function (i) {
         const tr = document.createElement("tr");
@@ -142,9 +145,12 @@
           "<td>" + escapeHtml(i.Branch) + "</td>" +
           "<td>" + escapeHtml(i.CurrentStock) + "</td>" +
           "<td>₹" + escapeHtml(i.BuyingPrice) + "</td>" +
-          "<td>₹" + escapeHtml(i.SellingPrice) + "</td>" +
+          "<td>" + (Number(i.SellingPrice) > 0 ? "₹" + escapeHtml(i.SellingPrice) : "<span style='color:#c0392b;'>Not set</span>") + "</td>" +
           "<td>₹" + escapeHtml(i.BuyingValue) + "</td>" +
-          "<td><span class='badge " + (i.LowStock ? "badge-low" : "badge-ok") + "'>" + (i.LowStock ? "Low Stock" : "OK") + "</span></td>";
+          "<td><span class='badge " + (i.LowStock ? "badge-low" : "badge-ok") + "'>" + (i.LowStock ? "Low Stock" : "OK") + "</span></td>" +
+          (isOwner
+            ? "<td><button class='link-btn' onclick='editSellingPrice(" + JSON.stringify(i).replace(/'/g, "&apos;") + ")'>Edit Price</button></td>"
+            : "");
         tbody.appendChild(tr);
       });
     }
@@ -159,6 +165,29 @@
     document.getElementById("totalBuyingValue").textContent = "₹" + totalBuyingValue.toFixed(2);
     document.getElementById("totalSellingValue").textContent = "₹" + totalSellingValue.toFixed(2);
     document.getElementById("totalPotentialProfit").textContent = "₹" + (totalSellingValue - totalBuyingValue).toFixed(2);
+  }
+
+  async function editSellingPrice(item) {
+    const current = Number(item.SellingPrice) > 0 ? item.SellingPrice : "";
+    const newPrice = prompt(
+      "Set selling price for " + item.ProductName + " (" + item.ColourName + ", " + item.SizeName + ") at " + item.Branch + ":",
+      current
+    );
+    if (newPrice === null) return; // cancelled
+    if (!newPrice || isNaN(newPrice) || Number(newPrice) <= 0) { alert("Enter a valid price greater than 0."); return; }
+
+    const params = new URLSearchParams({
+      action: "setSellingPrice", token: token,
+      productId: item.ProductID, colourId: item.ColourID, sizeId: item.SizeID, branch: item.Branch,
+      sellingPrice: newPrice
+    });
+    const res = await fetch(API_URL + "?" + params.toString());
+    const data = await res.json();
+    if (data.success) {
+      loadInventory();
+    } else {
+      alert(data.message || "Failed to update selling price.");
+    }
   }
 
   uerpLoadBranchDropdown(API_URL, token, "branchFilter", true).then(function () {
