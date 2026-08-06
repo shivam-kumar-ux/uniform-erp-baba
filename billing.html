@@ -127,7 +127,19 @@
       <tbody id="cartBody"><tr><td colspan="5" style="color:#999;">No items yet.</td></tr></tbody>
     </table>
     <div class="totals">
-      <div><span>Total Amount</span><span id="totalAmount">₹0</span></div>
+      <div><span>Subtotal</span><span id="totalAmount">₹0</span></div>
+    </div>
+    <label style="margin-top:10px;">Discount</label>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <input id="discountValue" type="number" min="0" step="0.01" value="0" style="flex:1;" oninput="updateDue()">
+      <select id="discountType" style="width:90px;" onchange="updateDue()">
+        <option value="amount">₹ Amount</option>
+        <option value="percent">% Percent</option>
+      </select>
+    </div>
+    <div class="totals">
+      <div><span>Discount Applied</span><span id="discountApplied">₹0</span></div>
+      <div class="grand"><span>Total After Discount</span><span id="totalAfterDiscount">₹0</span></div>
     </div>
     <label style="margin-top:10px;">Branch</label>
     <select id="branch"></select>
@@ -389,16 +401,34 @@
         tbody.appendChild(tr);
       });
     }
-    const total = cart.reduce(function (sum, item) { return sum + item.qty * item.unitPrice; }, 0);
+    const total = getSubtotal();
     document.getElementById("totalAmount").textContent = "₹" + total;
     updateDue();
   }
 
+  function getSubtotal() {
+    return cart.reduce(function (sum, item) { return sum + item.qty * item.unitPrice; }, 0);
+  }
+
+  function getDiscountAmount() {
+    const subtotal = getSubtotal();
+    const rawValue = Number(document.getElementById("discountValue").value) || 0;
+    const type = document.getElementById("discountType").value;
+    let discount = type === "percent" ? (subtotal * rawValue / 100) : rawValue;
+    discount = Math.max(0, Math.min(discount, subtotal)); // never negative, never more than the subtotal
+    return Math.round(discount * 100) / 100;
+  }
+
   function updateDue() {
-    const total = cart.reduce(function (sum, item) { return sum + item.qty * item.unitPrice; }, 0);
+    const subtotal = getSubtotal();
+    const discount = getDiscountAmount();
+    const totalAfterDiscount = subtotal - discount;
     const paid = Number(document.getElementById("amountPaid").value) || 0;
-    const due = Math.max(0, total - paid);
-    document.getElementById("amountDue").textContent = "₹" + due;
+    const due = Math.max(0, totalAfterDiscount - paid);
+
+    document.getElementById("discountApplied").textContent = "₹" + discount.toFixed(2);
+    document.getElementById("totalAfterDiscount").textContent = "₹" + totalAfterDiscount.toFixed(2);
+    document.getElementById("amountDue").textContent = "₹" + due.toFixed(2);
   }
   document.getElementById("amountPaid").addEventListener("input", updateDue);
 
@@ -412,6 +442,7 @@
       studentId: selectedStudent.StudentID,
       branch: document.getElementById("branch").value,
       items: JSON.stringify(cart),
+      discountAmount: getDiscountAmount(),
       amountPaid: document.getElementById("amountPaid").value || 0,
       paymentMode: document.getElementById("paymentMode").value
     });
@@ -425,6 +456,7 @@
       renderCart();
       clearStudent();
       document.getElementById("amountPaid").value = 0;
+      document.getElementById("discountValue").value = 0;
       loadInventory();
       setTimeout(function () { window.location.href = "receipt.html?billId=" + data.bill.billId; }, 1200);
     } else {

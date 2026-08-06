@@ -40,16 +40,31 @@
   .status-Due { background: #fdecea; color: #c0392b; }
   .actions { text-align: center; margin-top: 20px; }
   .btn-primary {
-    background: #2c5282; color: white; border: none; padding: 10px 24px;
+    background: #2c5282; color: white; border: none; padding: 10px 20px;
     border-radius: 4px; font-size: 14px; cursor: pointer; margin: 6px;
   }
   .btn-whatsapp { background: #1e7e34; }
   .btn-whatsapp:disabled { background: #999; cursor: not-allowed; }
   .footer-note { text-align: center; font-size: 12px; color: #999; margin-top: 20px; }
   .phone-note { text-align: center; font-size: 12px; color: #999; margin-top: 4px; }
+  .print-options {
+    background: white; border-radius: 8px; padding: 18px; margin-top: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08); text-align: center;
+  }
+  .print-options label { font-size: 13px; font-weight: 600; color: #444; margin-right: 8px; }
+  .print-options select {
+    padding: 7px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; margin-bottom: 14px;
+  }
+  .copy-btn-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .btn-copy {
+    background: #2c5282; color: white; border: none; padding: 10px 18px;
+    border-radius: 4px; font-size: 13px; cursor: pointer;
+  }
+  .btn-copy.shop { background: #6b4fa0; }
+  .btn-copy.both { background: #1e3a5f; }
 
-  /* Print-only duplicate-copy layout, hidden on screen */
-  #printCopies { display: none; }
+  /* Print-only content, hidden on screen */
+  #printArea { display: none; }
   .copy-label {
     text-align: center; font-weight: 700; font-size: 11px; color: #666;
     text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;
@@ -61,11 +76,11 @@
   .print-copy { padding: 14px 0; }
 
   @media print {
-    header, nav, .actions { display: none; }
+    header, nav, .actions, .print-options { display: none; }
     body { background: white; }
     .container { max-width: 100%; margin: 0; padding: 0; }
     #screenView { display: none; }
-    #printCopies { display: block; }
+    #printArea { display: block; }
     .receipt-card { box-shadow: none; padding: 0; }
   }
 </style>
@@ -102,11 +117,26 @@
     </div>
   </div>
 
-  <!-- Print-only: two copies stacked on one page, split by a cut line -->
-  <div id="printCopies"></div>
+  <!-- Print-only content gets built fresh into here right before each print action -->
+  <div id="printArea"></div>
+
+  <div class="print-options">
+    <div>
+      <label for="printerType">Printer / Paper Type:</label>
+      <select id="printerType">
+        <option value="a4">Full Page (A4)</option>
+        <option value="80mm">80mm Thermal Roll</option>
+        <option value="58mm">58mm Thermal Roll</option>
+      </select>
+    </div>
+    <div class="copy-btn-row">
+      <button class="btn-copy" onclick="printReceipt('customer')">🧾 Print for Customer</button>
+      <button class="btn-copy shop" onclick="printReceipt('shop')">🏪 Print for Shop</button>
+      <button class="btn-copy both" onclick="printReceipt('both')">📄 Print Both</button>
+    </div>
+  </div>
 
   <div class="actions">
-    <button class="btn-primary" onclick="window.print()">Print Receipt (2 Copies)</button>
     <button class="btn-primary btn-whatsapp" id="whatsappBtn" onclick="sendWhatsApp()" disabled>Send on WhatsApp</button>
     <button class="btn-primary" style="background:#555;" onclick="window.location.href='billing.html'">New Bill</button>
   </div>
@@ -133,7 +163,21 @@
     return params.get("billId") || localStorage.getItem("lastBillId");
   }
 
-  /** Builds the inner HTML for one self-contained receipt (shop header + details), reused for both screen and print copies. */
+  function totalsBlockHtml(bill) {
+    const hasDiscount = Number(bill.DiscountAmount) > 0;
+    const subtotal = hasDiscount ? (Number(bill.TotalAmount) + Number(bill.DiscountAmount)) : bill.TotalAmount;
+    let html = "";
+    if (hasDiscount) {
+      html += "<div><span>Subtotal</span><span>₹" + subtotal.toFixed(2) + "</span></div>";
+      html += "<div><span>Discount</span><span>-₹" + Number(bill.DiscountAmount).toFixed(2) + "</span></div>";
+    }
+    html += "<div" + (hasDiscount ? "" : " class='grand'") + "><span>Total Amount</span><span>₹" + bill.TotalAmount + "</span></div>";
+    html += "<div><span>Amount Paid</span><span>₹" + bill.AmountPaid + "</span></div>";
+    html += "<div class='grand'><span>Amount Due</span><span>₹" + bill.AmountDue + "</span></div>";
+    return html;
+  }
+
+  /** Full-size A4 receipt layout (shop header, table, totals block) — used for the screen view and A4 printing. */
   function buildReceiptHtml(bill, student, items, copyLabel) {
     let itemsHtml = "";
     items.forEach(function (it) {
@@ -167,15 +211,65 @@
         "<thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>" +
         "<tbody>" + itemsHtml + "</tbody>" +
       "</table>" +
-      "<div class='totals-block'>" +
-        "<div><span>Total Amount</span><span>₹" + bill.TotalAmount + "</span></div>" +
-        "<div><span>Amount Paid</span><span>₹" + bill.AmountPaid + "</span></div>" +
-        "<div class='grand'><span>Amount Due</span><span>₹" + bill.AmountDue + "</span></div>" +
-      "</div>" +
+      "<div class='totals-block'>" + totalsBlockHtml(bill) + "</div>" +
       "<div style='text-align:center; margin-top:14px;'>" +
         "<span class='status-tag status-" + bill.Status + "'>" + bill.Status + "</span>" +
       "</div>" +
       "<div class='footer-note'>Thank you for shopping with us — BABA General Store</div>"
+    );
+  }
+
+  /** Compact receipt layout for thermal roll printers. widthMm controls the paper size (58 or 80). */
+  function buildThermalHtml(bill, student, items, copyLabel, widthMm) {
+    const usableWidth = widthMm - 6; // leave ~3mm margin each side
+    const fontSize = widthMm <= 58 ? "10px" : "11px";
+    const titleSize = widthMm <= 58 ? "12px" : "13px";
+
+    let itemsHtml = "";
+    items.forEach(function (it) {
+      itemsHtml +=
+        "<div style='margin-bottom:3px;'>" +
+          "<div>" + escapeHtml(it.ProductName) + " (" + escapeHtml(it.ColourName) + ", " + escapeHtml(it.SizeName) + ")</div>" +
+          "<div style='display:flex; justify-content:space-between;'>" +
+            "<span>" + it.Qty + " x ₹" + it.UnitPrice + "</span><span>₹" + it.LineTotal + "</span>" +
+          "</div>" +
+        "</div>";
+    });
+
+    const billDate = new Date(bill.BillDate).toLocaleDateString();
+    const hasDiscount = Number(bill.DiscountAmount) > 0;
+    const subtotal = hasDiscount ? (Number(bill.TotalAmount) + Number(bill.DiscountAmount)) : bill.TotalAmount;
+    const dashes = "-".repeat(widthMm <= 58 ? 28 : 36);
+
+    let totalsHtml = "";
+    if (hasDiscount) {
+      totalsHtml += "<div style='display:flex; justify-content:space-between;'><span>Subtotal</span><span>₹" + subtotal.toFixed(2) + "</span></div>";
+      totalsHtml += "<div style='display:flex; justify-content:space-between;'><span>Discount</span><span>-₹" + Number(bill.DiscountAmount).toFixed(2) + "</span></div>";
+    }
+    totalsHtml += "<div style='display:flex; justify-content:space-between; font-weight:bold;'><span>TOTAL</span><span>₹" + bill.TotalAmount + "</span></div>";
+    totalsHtml += "<div style='display:flex; justify-content:space-between;'><span>Paid</span><span>₹" + bill.AmountPaid + "</span></div>";
+    totalsHtml += "<div style='display:flex; justify-content:space-between;'><span>Due</span><span>₹" + bill.AmountDue + "</span></div>";
+
+    return (
+      "<div style='width:" + usableWidth + "mm; font-family:\"Courier New\",monospace; font-size:" + fontSize + "; color:#000; line-height:1.45;'>" +
+        (copyLabel ? "<div style='text-align:center; font-weight:bold; margin-bottom:4px;'>*** " + escapeHtml(copyLabel) + " ***</div>" : "") +
+        "<div style='text-align:center; font-weight:bold; font-size:" + titleSize + ";'>BABA GENERAL STORE</div>" +
+        "<div style='text-align:center;'>Shahpur &amp; Telaiya Dam</div>" +
+        "<div>" + dashes + "</div>" +
+        "<div>Bill No: " + escapeHtml(bill.BillNo) + "</div>" +
+        "<div>Date: " + billDate + "</div>" +
+        "<div>" + dashes + "</div>" +
+        "<div>" + escapeHtml(student.StudentName || "Walk-in Customer") + "</div>" +
+        "<div>Adm# " + escapeHtml(student.AdmissionNo || "-") + "</div>" +
+        "<div>" + dashes + "</div>" +
+        itemsHtml +
+        "<div>" + dashes + "</div>" +
+        totalsHtml +
+        "<div style='text-align:center; margin-top:4px;'>[" + bill.Status.toUpperCase() + "]</div>" +
+        "<div>" + dashes + "</div>" +
+        "<div style='text-align:center;'>Thank you for shopping with us!</div>" +
+        "<div style='height:8mm;'></div>" +
+      "</div>"
     );
   }
 
@@ -198,16 +292,8 @@
     currentStudent = data.data.student;
     currentItems = data.data.items;
 
-    // Screen view: one copy, no label
     document.getElementById("content").innerHTML = buildReceiptHtml(currentBill, currentStudent, currentItems, "");
 
-    // Print view: two full copies stacked on one page, separated by a cut line
-    document.getElementById("printCopies").innerHTML =
-      "<div class='print-copy'>" + buildReceiptHtml(currentBill, currentStudent, currentItems, "Parent's Copy") + "</div>" +
-      "<div class='cut-line'>✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ✂</div>" +
-      "<div class='print-copy'>" + buildReceiptHtml(currentBill, currentStudent, currentItems, "Shopkeeper's Copy") + "</div>";
-
-    // Enable WhatsApp button only if a parent phone number exists
     const whatsappBtn = document.getElementById("whatsappBtn");
     if (currentStudent.ParentPhone) {
       whatsappBtn.disabled = false;
@@ -215,6 +301,59 @@
       whatsappBtn.disabled = true;
       document.getElementById("phoneNote").textContent = "No parent phone number on file for this student — add one via Students page to enable WhatsApp sending.";
     }
+  }
+
+  /**
+   * Unified print handler. copyMode: 'customer' | 'shop' | 'both'.
+   * Reads the currently selected printer/paper type and builds the right layout,
+   * injecting a temporary @page rule so the browser's print dialog sizes correctly.
+   */
+  function printReceipt(copyMode) {
+    if (!currentBill) return;
+    const paperType = document.getElementById("printerType").value;
+    const printArea = document.getElementById("printArea");
+
+    const copies = [];
+    if (copyMode === "customer" || copyMode === "both") copies.push("Parent's Copy");
+    if (copyMode === "shop" || copyMode === "both") copies.push("Shopkeeper's Copy");
+    // Single-copy prints don't need a label at all
+    const useLabels = copies.length > 1;
+
+    let html = "";
+    let pageRule = "";
+
+    if (paperType === "a4") {
+      pageRule = "@page { size: A4; margin: 15mm; }";
+      copies.forEach(function (label, idx) {
+        html += "<div class='print-copy'>" + buildReceiptHtml(currentBill, currentStudent, currentItems, useLabels ? label : "") + "</div>";
+        if (idx < copies.length - 1) {
+          html += "<div class='cut-line'>✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ✂</div>";
+        }
+      });
+    } else {
+      const widthMm = paperType === "58mm" ? 58 : 80;
+      pageRule = "@page { size: " + widthMm + "mm auto; margin: 2mm; }";
+      copies.forEach(function (label) {
+        html += buildThermalHtml(currentBill, currentStudent, currentItems, useLabels ? label : "", widthMm);
+      });
+    }
+
+    printArea.innerHTML = html;
+
+    // Inject a temporary stylesheet with the right @page size for this print job, then clean up afterward.
+    const styleTag = document.createElement("style");
+    styleTag.id = "uerp-print-page-style";
+    styleTag.textContent = pageRule;
+    document.head.appendChild(styleTag);
+
+    window.onafterprint = function () {
+      const tag = document.getElementById("uerp-print-page-style");
+      if (tag) tag.remove();
+      printArea.innerHTML = "";
+      window.onafterprint = null;
+    };
+
+    window.print();
   }
 
   function normalizePhone(raw) {
@@ -237,12 +376,20 @@
       itemLines += "- " + it.ProductName + " (" + it.ColourName + ", " + it.SizeName + ") x" + it.Qty + " = ₹" + it.LineTotal + "\n";
     });
 
-    const message =
+    let message =
       "BABA General Store — Bill Receipt\n" +
       "Bill No: " + currentBill.BillNo + "\n" +
       "Date: " + billDate + "\n" +
       "Student: " + (currentStudent.StudentName || "-") + " (Adm# " + (currentStudent.AdmissionNo || "-") + ")\n\n" +
-      "Items:\n" + itemLines + "\n" +
+      "Items:\n" + itemLines + "\n";
+
+    if (Number(currentBill.DiscountAmount) > 0) {
+      const subtotal = Number(currentBill.TotalAmount) + Number(currentBill.DiscountAmount);
+      message += "Subtotal: ₹" + subtotal.toFixed(2) + "\n";
+      message += "Discount: -₹" + Number(currentBill.DiscountAmount).toFixed(2) + "\n";
+    }
+
+    message +=
       "Total Amount: ₹" + currentBill.TotalAmount + "\n" +
       "Amount Paid: ₹" + currentBill.AmountPaid + "\n" +
       "Amount Due: ₹" + currentBill.AmountDue + "\n\n" +
