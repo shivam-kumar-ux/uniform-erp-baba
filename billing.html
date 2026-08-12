@@ -188,11 +188,15 @@
     const q = document.getElementById("studentSearch").value.trim();
     if (q.length < 2) { document.getElementById("studentResults").innerHTML = ""; return; }
     searchTimer = setTimeout(async function () {
-      const res = await fetch(API_URL + "?action=listStudents&token=" + encodeURIComponent(token) + "&search=" + encodeURIComponent(q));
-      const data = await res.json();
       const container = document.getElementById("studentResults");
+      container.innerHTML = "<div style='padding:8px; color:#888; font-size:13px;'>Searching...</div>";
+      const data = await uerpFetchJson(API_URL + "?action=listStudents&token=" + encodeURIComponent(token) + "&search=" + encodeURIComponent(q));
       container.innerHTML = "";
       if (data.success) {
+        if (data.data.length === 0) {
+          container.innerHTML = "<div style='padding:8px; color:#888; font-size:13px;'>No students found.</div>";
+          return;
+        }
         data.data.slice(0, 8).forEach(function (s) {
           const div = document.createElement("div");
           div.className = "student-result";
@@ -200,6 +204,8 @@
           div.onclick = function () { selectStudent(s); };
           container.appendChild(div);
         });
+      } else {
+        container.innerHTML = "<div style='padding:8px; color:#c0392b; font-size:13px;'>Search failed: " + escapeHtml(data.message) + " — try again.</div>";
       }
     }, 300);
   }
@@ -235,30 +241,20 @@
     setTimeout(function () { el.style.display = "none"; }, 4000);
   }
 
-  async function loadNewStudentDropdowns() {
-    const schoolRes = await fetch(API_URL + "?action=listSchools&token=" + encodeURIComponent(token));
-    const schoolData = await schoolRes.json();
-    if (schoolData.success) {
-      const select = document.getElementById("newSchoolId");
-      schoolData.data.filter(function (s) { return s.Status === "Active"; }).forEach(function (s) {
-        const opt = document.createElement("option");
-        opt.value = s.SchoolID;
-        opt.textContent = s.SchoolName + " (" + s.Branch + ")";
-        select.appendChild(opt);
-      });
-    }
+  function populateSelect(selectId, items, valueField, labelFn) {
+    const select = document.getElementById(selectId);
+    items.forEach(function (item) {
+      const opt = document.createElement("option");
+      opt.value = item[valueField];
+      opt.textContent = labelFn(item);
+      select.appendChild(opt);
+    });
+  }
 
-    const sessionRes = await fetch(API_URL + "?action=listSessions&token=" + encodeURIComponent(token));
-    const sessionData = await sessionRes.json();
-    if (sessionData.success) {
-      const select = document.getElementById("newSessionId");
-      sessionData.data.forEach(function (s) {
-        const opt = document.createElement("option");
-        opt.value = s.SessionID;
-        opt.textContent = s.SessionName;
-        select.appendChild(opt);
-      });
-    }
+  async function loadNewStudentDropdowns(masterData) {
+    populateSelect("newSchoolId", masterData.schools.filter(function (s) { return s.Status === "Active"; }), "SchoolID",
+      function (s) { return s.SchoolName + " (" + s.Branch + ")"; });
+    populateSelect("newSessionId", masterData.sessions, "SessionID", function (s) { return s.SessionName; });
   }
 
   async function saveNewStudent() {
@@ -308,11 +304,16 @@
     }
   }
 
+  let inventoryLoadFailed = false;
+
   async function loadDropdown(action, selectId, valueField, labelField, filterActive) {
-    const res = await fetch(API_URL + "?action=" + action + "&token=" + encodeURIComponent(token));
-    const data = await res.json();
-    if (!data.success) return;
+    const data = await uerpCachedFetchJson(API_URL + "?action=" + action + "&token=" + encodeURIComponent(token), action);
     const select = document.getElementById(selectId);
+    if (!data.success) {
+      showMsg("Failed to load " + action.replace("list", "") + ": " + data.message + " — try refreshing the page.", "error");
+      select.innerHTML = "<option value=''>(failed to load — refresh page)</option>";
+      return;
+    }
     let items = data.data;
     if (filterActive) items = items.filter(function (i) { return i.Status === "Active"; });
     items.forEach(function (item) {
@@ -325,9 +326,14 @@
 
   async function loadInventory() {
     const branch = document.getElementById("branch").value;
-    const res = await fetch(API_URL + "?action=listInventory&token=" + encodeURIComponent(token) + "&branch=" + encodeURIComponent(branch));
-    const data = await res.json();
-    if (data.success) allInventory = data.data;
+    const data = await uerpFetchJson(API_URL + "?action=listInventory&token=" + encodeURIComponent(token) + "&branch=" + encodeURIComponent(branch));
+    if (data.success) {
+      allInventory = data.data;
+      inventoryLoadFailed = false;
+    } else {
+      inventoryLoadFailed = true;
+      showMsg("Inventory failed to load (" + data.message + "). Stock checks won't be accurate until this is fixed — click below to retry.", "error");
+    }
     updateStockNote();
   }
 
@@ -335,6 +341,11 @@
     const productId = document.getElementById("itemProduct").value;
     const colourId = document.getElementById("itemColour").value;
     const sizeId = document.getElementById("itemSize").value;
+    if (inventoryLoadFailed) {
+      document.getElementById("stockNote").innerHTML =
+        "<span style='color:#c0392b;'>Inventory didn't load — <a href='#' onclick='loadInventory(); return false;' style='color:#c0392b; text-decoration:underline;'>click to retry</a> before adding items.</span>";
+      return;
+    }
     const match = allInventory.find(function (i) {
       return i.ProductID === productId && i.ColourID === colourId && i.SizeID === sizeId;
     });
@@ -348,6 +359,10 @@
   }
 
   function addToCart() {
+    if (inventoryLoadFailed) {
+      showMsg("Inventory hasn't loaded correctly — click the retry link above the Add button before adding items, so stock is checked accurately.", "error");
+      return;
+    }
     const productId = document.getElementById("itemProduct").value;
     const colourId = document.getElementById("itemColour").value;
     const sizeId = document.getElementById("itemSize").value;
@@ -469,13 +484,26 @@
   document.getElementById("itemSize").addEventListener("change", updateStockNote);
   document.getElementById("branch").addEventListener("change", loadInventory);
 
-  loadDropdown("listProducts", "itemProduct", "ProductID", "ProductName", true);
-  loadDropdown("listColours", "itemColour", "ColourID", "ColourName", false);
-  loadDropdown("listSizes", "itemSize", "SizeID", "SizeName", false);
-  uerpLoadBranchDropdown(API_URL, token, "branch", false).then(function () {
-    loadInventory();
-  });
-  loadNewStudentDropdowns();
+  // Was 7 separate requests (Products, Colours, Sizes, Branches, Schools, Sessions, Inventory) —
+  // now just 2: one batched call for everything that rarely changes, and one fresh call for
+  // Inventory (which must always be current, since stock changes with every sale).
+  async function initBillingPage() {
+    const masterData = await uerpLoadMasterData(API_URL, token);
+    if (!masterData.success) {
+      showMsg("Failed to load core data: " + masterData.message + " — try refreshing the page.", "error");
+      return;
+    }
+    const d = masterData.data;
+
+    populateSelect("itemProduct", d.products.filter(function (p) { return p.Status === "Active"; }), "ProductID", function (p) { return p.ProductName; });
+    populateSelect("itemColour", d.colours, "ColourID", function (c) { return c.ColourName; });
+    populateSelect("itemSize", d.sizes, "SizeID", function (s) { return s.SizeName; });
+    uerpPopulateBranchSelect(d.branches, "branch", false);
+    loadNewStudentDropdowns(d);
+
+    await loadInventory();
+  }
+  initBillingPage();
 </script>
 
 </body>

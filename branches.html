@@ -30,18 +30,19 @@
   .container { max-width: 800px; margin: 16px auto 24px; padding: 0 16px; }
   .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
   .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
-  .add-row { display: flex; gap: 8px; margin-bottom: 16px; }
-  .add-row input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
-  .add-row button {
-    background: #2c5282; color: white; border: none; padding: 8px 16px;
-    border-radius: 4px; cursor: pointer; font-size: 14px;
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .form-grid label { font-size: 12px; font-weight: 600; color: #444; display: block; margin-bottom: 4px; }
+  .form-grid input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+  .btn-primary {
+    background: #2c5282; color: white; border: none; padding: 10px 20px;
+    border-radius: 4px; font-size: 14px; cursor: pointer;
   }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
   th { color: #666; font-weight: 600; }
   .status-active { color: #1e7e34; font-weight: 600; }
   .status-inactive { color: #c0392b; font-weight: 600; }
-  .link-btn { background: none; border: none; color: #2c5282; cursor: pointer; font-size: 13px; padding: 0; }
+  .link-btn { background: none; border: none; color: #2c5282; cursor: pointer; font-size: 13px; padding: 0; margin-right: 10px; }
   #msg { font-size: 13px; margin-top: 10px; display: none; }
   #msg.error { color: #c0392b; }
   #msg.success { color: #1e7e34; }
@@ -49,6 +50,16 @@
     background: #eef3fa; border-left: 4px solid #2c5282; padding: 10px 14px;
     font-size: 12px; color: #444; margin-bottom: 16px; border-radius: 4px;
   }
+  .modal-overlay {
+    display: none; position: fixed; top:0; left:0; right:0; bottom:0;
+    background: rgba(0,0,0,0.4); align-items: center; justify-content: center; z-index: 1000;
+  }
+  .modal-box { background: white; border-radius: 8px; padding: 24px; width: 340px; }
+  .modal-box h3 { margin: 0 0 14px; font-size: 15px; }
+  .modal-box label { font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; margin-top: 10px; }
+  .modal-box input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .btn-secondary { background: #888; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -66,22 +77,38 @@
 <div class="container">
   <div class="card">
     <div class="note-box">
-      Add every shop location here. New branches immediately become available in Billing, Purchase Entry, Inventory, Finance, Reports, and when assigning staff — no code changes needed.
+      Each branch has its own Business Name and Address — since different branches may legally operate under different registered names (e.g. "BABA General Store" at one location, "BABA Enterprise" at another). This name is what shows on printed receipts and WhatsApp messages for bills from that branch.
     </div>
     <h2>Add New Branch</h2>
-    <div class="add-row">
-      <input id="branchInput" placeholder="e.g. Hazaribagh">
-      <button onclick="addBranch()">Add</button>
+    <div class="form-grid">
+      <div><label>Branch Name (internal, used in dropdowns)</label><input id="branchName" placeholder="e.g. Hazaribagh"></div>
+      <div><label>Business Name (shown on receipts)</label><input id="businessName" placeholder="e.g. BABA General Store"></div>
+      <div style="grid-column: 1 / -1;"><label>Address</label><input id="address" placeholder="e.g. Main Road, Hazaribagh"></div>
     </div>
+    <button class="btn-primary" onclick="addBranch()">Add Branch</button>
     <div id="msg"></div>
   </div>
 
   <div class="card">
     <h2>All Branches</h2>
     <table>
-      <thead><tr><th>Name</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody id="branchesBody"><tr><td colspan="3">Loading...</td></tr></tbody>
+      <thead><tr><th>Branch</th><th>Business Name</th><th>Address</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="branchesBody"><tr><td colspan="5">Loading...</td></tr></tbody>
     </table>
+  </div>
+</div>
+
+<div class="modal-overlay" id="editModalOverlay">
+  <div class="modal-box">
+    <h3>Edit Branch Identity</h3>
+    <label>Business Name</label>
+    <input id="editBusinessName">
+    <label>Address</label>
+    <input id="editAddress">
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeEditModal()">Cancel</button>
+      <button class="btn-primary" onclick="submitEdit()">Save</button>
+    </div>
   </div>
 </div>
 
@@ -94,6 +121,8 @@
     alert("This page is only accessible to the Owner.");
     window.location.href = "dashboard.html";
   }
+
+  let allBranches = [];
 
   function logout() { localStorage.clear(); window.location.href = "login.html"; }
 
@@ -114,29 +143,73 @@
     const data = await res.json();
     if (!data.success) { showMsg(data.message, "error"); return; }
 
+    allBranches = data.data;
     const tbody = document.getElementById("branchesBody");
     tbody.innerHTML = "";
-    data.data.forEach(function (b) {
+    allBranches.forEach(function (b) {
       const tr = document.createElement("tr");
       tr.innerHTML =
         "<td>" + escapeHtml(b.BranchName) + "</td>" +
+        "<td>" + escapeHtml(b.BusinessName || "-") + "</td>" +
+        "<td>" + escapeHtml(b.Address || "-") + "</td>" +
         "<td class='" + (b.Status === "Active" ? "status-active" : "status-inactive") + "'>" + b.Status + "</td>" +
-        "<td><button class='link-btn' onclick=\"toggleStatus('" + b.BranchID + "')\">" + (b.Status === "Active" ? "Deactivate" : "Activate") + "</button></td>";
+        "<td>" +
+          "<button class='link-btn' onclick=\"openEditModal('" + b.BranchID + "')\">Edit</button>" +
+          "<button class='link-btn' onclick=\"toggleStatus('" + b.BranchID + "')\">" + (b.Status === "Active" ? "Deactivate" : "Activate") + "</button>" +
+        "</td>";
       tbody.appendChild(tr);
     });
   }
 
   async function addBranch() {
-    const name = document.getElementById("branchInput").value.trim();
+    const name = document.getElementById("branchName").value.trim();
+    const businessName = document.getElementById("businessName").value.trim();
+    const address = document.getElementById("address").value.trim();
     if (!name) { showMsg("Enter a branch name", "error"); return; }
-    const res = await fetch(API_URL + "?action=addBranch&token=" + encodeURIComponent(token) + "&branchName=" + encodeURIComponent(name));
+
+    const params = new URLSearchParams({
+      action: "addBranch", token: token, branchName: name, businessName: businessName, address: address
+    });
+    const res = await fetch(API_URL + "?" + params.toString());
     const data = await res.json();
     if (data.success) {
       showMsg("Branch added.", "success");
-      document.getElementById("branchInput").value = "";
+      document.getElementById("branchName").value = "";
+      document.getElementById("businessName").value = "";
+      document.getElementById("address").value = "";
       loadBranches();
     } else {
       showMsg(data.message || "Failed to add branch.", "error");
+    }
+  }
+
+  function openEditModal(branchId) {
+    const b = allBranches.find(function (x) { return x.BranchID === branchId; });
+    if (!b) return;
+    document.getElementById("editModalOverlay").dataset.branchId = branchId;
+    document.getElementById("editBusinessName").value = b.BusinessName || "";
+    document.getElementById("editAddress").value = b.Address || "";
+    document.getElementById("editModalOverlay").style.display = "flex";
+  }
+
+  function closeEditModal() {
+    document.getElementById("editModalOverlay").style.display = "none";
+  }
+
+  async function submitEdit() {
+    const branchId = document.getElementById("editModalOverlay").dataset.branchId;
+    const params = new URLSearchParams({
+      action: "updateBranch", token: token, branchId: branchId,
+      businessName: document.getElementById("editBusinessName").value.trim(),
+      address: document.getElementById("editAddress").value.trim()
+    });
+    const res = await fetch(API_URL + "?" + params.toString());
+    const data = await res.json();
+    if (data.success) {
+      closeEditModal();
+      loadBranches();
+    } else {
+      alert(data.message || "Failed to save changes.");
     }
   }
 

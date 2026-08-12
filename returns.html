@@ -220,35 +220,41 @@
   }
 
   async function loadMasterLists() {
-    const p = await (await fetch(API_URL + "?action=listProducts&token=" + encodeURIComponent(token))).json();
-    if (p.success) {
-      productsList = p.data.filter(function (x) { return x.Status === "Active"; });
-      const sel = document.getElementById("newProductId");
-      sel.innerHTML = "<option value=''>-- Select --</option>";
-      productsList.forEach(function (x) {
-        const opt = document.createElement("option"); opt.value = x.ProductID; opt.textContent = x.ProductName; sel.appendChild(opt);
-      });
+    const masterData = await uerpLoadMasterData(API_URL, token);
+    if (!masterData.success) {
+      showMsg("msg", "Failed to load core data: " + masterData.message, "error");
+      return;
     }
-    const c = await (await fetch(API_URL + "?action=listColours&token=" + encodeURIComponent(token))).json();
-    if (c.success) {
-      coloursList = c.data;
-      const sel = document.getElementById("newColourId");
-      sel.innerHTML = "<option value=''>-- Select --</option>";
-      coloursList.forEach(function (x) {
-        const opt = document.createElement("option"); opt.value = x.ColourID; opt.textContent = x.ColourName; sel.appendChild(opt);
-      });
+    const d = masterData.data;
+
+    productsList = d.products.filter(function (x) { return x.Status === "Active"; });
+    const productSel = document.getElementById("newProductId");
+    productSel.innerHTML = "<option value=''>-- Select --</option>";
+    productsList.forEach(function (x) {
+      const opt = document.createElement("option"); opt.value = x.ProductID; opt.textContent = x.ProductName; productSel.appendChild(opt);
+    });
+
+    coloursList = d.colours;
+    const colourSel = document.getElementById("newColourId");
+    colourSel.innerHTML = "<option value=''>-- Select --</option>";
+    coloursList.forEach(function (x) {
+      const opt = document.createElement("option"); opt.value = x.ColourID; opt.textContent = x.ColourName; colourSel.appendChild(opt);
+    });
+
+    sizesList = d.sizes;
+    const sizeSel = document.getElementById("newSizeId");
+    sizeSel.innerHTML = "<option value=''>-- Select --</option>";
+    sizesList.forEach(function (x) {
+      const opt = document.createElement("option"); opt.value = x.SizeID; opt.textContent = x.SizeName; sizeSel.appendChild(opt);
+    });
+
+    // Inventory (stock/prices) is never cached — it changes with every sale, so it must always be fresh.
+    const inv = await uerpFetchJson(API_URL + "?action=listInventory&token=" + encodeURIComponent(token));
+    if (inv.success) {
+      inventoryList = inv.data;
+    } else {
+      showMsg("msg", "Failed to load inventory — exchange prices won't auto-fill. Refresh the page to retry.", "error");
     }
-    const s = await (await fetch(API_URL + "?action=listSizes&token=" + encodeURIComponent(token))).json();
-    if (s.success) {
-      sizesList = s.data;
-      const sel = document.getElementById("newSizeId");
-      sel.innerHTML = "<option value=''>-- Select --</option>";
-      sizesList.forEach(function (x) {
-        const opt = document.createElement("option"); opt.value = x.SizeID; opt.textContent = x.SizeName; sel.appendChild(opt);
-      });
-    }
-    const inv = await (await fetch(API_URL + "?action=listInventory&token=" + encodeURIComponent(token))).json();
-    if (inv.success) inventoryList = inv.data;
   }
 
   document.getElementById("newProductId").addEventListener("change", autofillNewPrice);

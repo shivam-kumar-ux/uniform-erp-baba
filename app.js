@@ -240,56 +240,127 @@
     });
   }
 
-  // ---------------- Shared branch dropdown loader (with staff branch-locking) ----------------
-  // Pages call window.uerpLoadBranchDropdown(apiUrl, token, selectId, includeAllOption).
-  // Owner: sees every active branch, free to pick any.
-  // Staff assigned to one specific branch: dropdown is locked to just that branch.
-  // Staff assigned to "Both": sees every active branch, free to pick (same as Owner).
+  // ---------------- Shared retry-with-backoff fetch helper ----------------
+  // Google Apps Script can occasionally hiccup on a single request (brief overload,
+  // network blip) — especially when a page fires off several requests at once on load,
+  // like Billing does (Products, Colours, Sizes, Branches, Inventory, Schools, Sessions
+  // all at the same time). Without a retry, one failed request just silently leaves that
+  // dropdown/list empty with no visible error. This wraps fetch+JSON-parse with automatic
+  // retries so a transient failure recovers on its own instead of confusing the user.
+  async function uerpFetchJson(url, retries) {
+    retries = retries === undefined ? 2 : retries;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        return data;
+      } catch (err) {
+        if (attempt < retries) {
+          await new Promise(function (resolve) { setTimeout(resolve, 500 * (attempt + 1)); });
+        } else {
+          console.error('[UniformERP] uerpFetchJson failed after retries:', url, err);
+          return { success: false, message: 'Could not reach the server after several attempts. Check your internet connection and try again.' };
+        }
+      }
+    }
+  }
+  window.uerpFetchJson = uerpFetchJson;
+
+  // ---------------- Cached fetch for master data that rarely changes ----------------
+  // Products, Colours, Sizes, Schools, Suppliers, Branches, Sessions don't change from
+  // one page load to the next during normal daily use. Re-fetching them on every single
+  // page visit is a big part of why the app feels slow. This caches the response in
+  // sessionStorage (cleared when the browser tab closes, so it can never go permanently
+  // stale) for a short time, and serves repeat requests instantly from cache.
+  async function uerpCachedFetchJson(url, cacheKey, ttlMs) {
+    ttlMs = ttlMs === undefined ? 120000 : ttlMs; // 2 minutes default
+    try {
+      const cached = sessionStorage.getItem('uerp_cache_' + cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.time < ttlMs) {
+          return parsed.data;
+        }
+      }
+    } catch (e) { /* corrupt cache entry — ignore and re-fetch */ }
+
+    const data = await uerpFetchJson(url);
+    if (data.success) {
+      try {
+        sessionStorage.setItem('uerp_cache_' + cacheKey, JSON.stringify({ time: Date.now(), data: data }));
+      } catch (e) { /* storage full or unavailable — not fatal, just skip caching */ }
+    }
+    return data;
+  }
+  window.uerpCachedFetchJson = uerpCachedFetchJson;
+
+  /** Call this after adding/editing master data, so the next page load doesn't serve a stale cached list. */
+  function uerpInvalidateCache(cacheKey) {
+    sessionStorage.removeItem('uerp_cache_' + cacheKey);
+  }
+  window.uerpInvalidateCache = uerpInvalidateCache;
+
+  // ---------------- Batched master data loader (the big speed win) ----------------
+  // Fetches products/colours/sizes/suppliers/schools/sessions/branches in ONE request
+  // instead of up to 7 separate ones. Cached for 5 minutes per tab session, since this
+  // data rarely changes during a normal work session (Inventory is NOT included here —
+  // that's fetched separately and never cached, since stock changes constantly).
+  async function uerpLoadMasterData(apiUrl, token) {
+    return uerpCachedFetchJson(apiUrl + "?action=getMasterData&token=" + encodeURIComponent(token), "masterData", 300000);
+  }
+  window.uerpLoadMasterData = uerpLoadMasterData;
+
+  // ---------------- Shared branch dropdown population (with staff branch-locking) ----------------
+  // uerpPopulateBranchSelect works on already-fetched branch data (no network call) — used by
+  // pages that get branches as part of the batched getMasterData response.
+  // uerpLoadBranchDropdown is the standalone version for pages that only need branches alone.
+  function uerpPopulateBranchSelect(branches, selectId, includeAllOption) {
+    var select = document.getElementById(selectId);
+    if (!select) return;
+
+    var activeBranches = branches.filter(function (b) { return b.Status === 'Active'; });
+    var role = localStorage.getItem('uniformerp_role');
+    var userBranch = localStorage.getItem('uniformerp_branch');
+
+    select.innerHTML = '';
+    var isLockedToOneBranch = role !== 'Owner' && userBranch && userBranch !== 'Both' && userBranch !== '';
+
+    if (isLockedToOneBranch) {
+      var lockedOpt = document.createElement('option');
+      lockedOpt.value = userBranch;
+      lockedOpt.textContent = userBranch;
+      select.appendChild(lockedOpt);
+      select.disabled = true;
+      select.title = 'Locked to your assigned branch';
+      return;
+    }
+
+    if (includeAllOption) {
+      var allOpt = document.createElement('option');
+      allOpt.value = '';
+      allOpt.textContent = 'All Branches';
+      select.appendChild(allOpt);
+    }
+    activeBranches.forEach(function (b) {
+      var opt = document.createElement('option');
+      opt.value = b.BranchName;
+      opt.textContent = b.BranchName;
+      select.appendChild(opt);
+    });
+  }
+  window.uerpPopulateBranchSelect = uerpPopulateBranchSelect;
+
   async function uerpLoadBranchDropdown(apiUrl, token, selectId, includeAllOption) {
     var select = document.getElementById(selectId);
     if (!select) return;
 
-    try {
-      var res = await fetch(apiUrl + "?action=listBranches&token=" + encodeURIComponent(token));
-      var data = await res.json();
-      if (!data.success) {
-        console.error('[UniformERP] Failed to load branches:', data.message);
-        return;
-      }
-      var branches = data.data.filter(function (b) { return b.Status === 'Active'; });
-
-      var role = localStorage.getItem('uniformerp_role');
-      var userBranch = localStorage.getItem('uniformerp_branch');
-
-      select.innerHTML = '';
-
-      var isLockedToOneBranch = role !== 'Owner' && userBranch && userBranch !== 'Both' && userBranch !== '';
-
-      if (isLockedToOneBranch) {
-        var lockedOpt = document.createElement('option');
-        lockedOpt.value = userBranch;
-        lockedOpt.textContent = userBranch;
-        select.appendChild(lockedOpt);
-        select.disabled = true;
-        select.title = 'Locked to your assigned branch';
-        return;
-      }
-
-      if (includeAllOption) {
-        var allOpt = document.createElement('option');
-        allOpt.value = '';
-        allOpt.textContent = 'All Branches';
-        select.appendChild(allOpt);
-      }
-      branches.forEach(function (b) {
-        var opt = document.createElement('option');
-        opt.value = b.BranchName;
-        opt.textContent = b.BranchName;
-        select.appendChild(opt);
-      });
-    } catch (err) {
-      console.error('[UniformERP] uerpLoadBranchDropdown error:', err);
+    var data = await uerpFetchJson(apiUrl + "?action=listBranches&token=" + encodeURIComponent(token));
+    if (!data.success) {
+      console.error('[UniformERP] Failed to load branches:', data.message);
+      select.innerHTML = "<option value=''>(failed to load — refresh page)</option>";
+      return;
     }
+    uerpPopulateBranchSelect(data.data, selectId, includeAllOption);
   }
   window.uerpLoadBranchDropdown = uerpLoadBranchDropdown;
 

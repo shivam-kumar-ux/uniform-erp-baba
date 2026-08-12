@@ -147,6 +147,7 @@
   const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
   const token = localStorage.getItem("uniformerp_token");
   let currentBill = null, currentStudent = null, currentItems = null;
+  let branchIdentityMap = {};
 
   if (!token) window.location.href = "login.html";
 
@@ -161,6 +162,29 @@
   function getBillIdFromUrl() {
     const params = new URLSearchParams(window.location.search);
     return params.get("billId") || localStorage.getItem("lastBillId");
+  }
+
+  async function loadBranchIdentities() {
+    try {
+      const res = await fetch(API_URL + "?action=listBranches&token=" + encodeURIComponent(token));
+      const data = await res.json();
+      if (data.success) {
+        data.data.forEach(function (b) {
+          branchIdentityMap[String(b.BranchName).trim().toLowerCase()] = {
+            businessName: b.BusinessName || "BABA General Store",
+            address: b.Address || b.BranchName
+          };
+        });
+      }
+    } catch (err) {
+      console.error("[UniformERP] Failed to load branch identities:", err);
+    }
+  }
+
+  /** Returns {businessName, address} for a given branch, with a safe fallback if not found. */
+  function getBranchIdentity(branchName) {
+    const key = String(branchName || "").trim().toLowerCase();
+    return branchIdentityMap[key] || { businessName: "BABA General Store", address: branchName || "" };
   }
 
   function totalsBlockHtml(bill) {
@@ -191,12 +215,13 @@
     });
 
     const billDate = new Date(bill.BillDate).toLocaleDateString();
+    const identity = getBranchIdentity(bill.Branch);
 
     return (
       (copyLabel ? "<div class='copy-label'>" + escapeHtml(copyLabel) + "</div>" : "") +
       "<div class='shop-header'>" +
-        "<h2>BABA General Store</h2>" +
-        "<p>Uniform Shop — Shahpur &amp; Telaiya Dam</p>" +
+        "<h2>" + escapeHtml(identity.businessName) + "</h2>" +
+        "<p>Uniform Shop — " + escapeHtml(identity.address) + "</p>" +
       "</div>" +
       "<div class='meta-row'>" +
         "<span>Bill No: <strong>" + escapeHtml(bill.BillNo) + "</strong></span>" +
@@ -215,7 +240,7 @@
       "<div style='text-align:center; margin-top:14px;'>" +
         "<span class='status-tag status-" + bill.Status + "'>" + bill.Status + "</span>" +
       "</div>" +
-      "<div class='footer-note'>Thank you for shopping with us — BABA General Store</div>"
+      "<div class='footer-note'>Thank you for shopping with us — " + escapeHtml(identity.businessName) + "</div>"
     );
   }
 
@@ -240,6 +265,7 @@
     const hasDiscount = Number(bill.DiscountAmount) > 0;
     const subtotal = hasDiscount ? (Number(bill.TotalAmount) + Number(bill.DiscountAmount)) : bill.TotalAmount;
     const dashes = "-".repeat(widthMm <= 58 ? 28 : 36);
+    const identity = getBranchIdentity(bill.Branch);
 
     let totalsHtml = "";
     if (hasDiscount) {
@@ -253,8 +279,8 @@
     return (
       "<div style='width:" + usableWidth + "mm; font-family:\"Courier New\",monospace; font-size:" + fontSize + "; color:#000; line-height:1.45;'>" +
         (copyLabel ? "<div style='text-align:center; font-weight:bold; margin-bottom:4px;'>*** " + escapeHtml(copyLabel) + " ***</div>" : "") +
-        "<div style='text-align:center; font-weight:bold; font-size:" + titleSize + ";'>BABA GENERAL STORE</div>" +
-        "<div style='text-align:center;'>Shahpur &amp; Telaiya Dam</div>" +
+        "<div style='text-align:center; font-weight:bold; font-size:" + titleSize + ";'>" + escapeHtml(identity.businessName.toUpperCase()) + "</div>" +
+        "<div style='text-align:center;'>" + escapeHtml(identity.address) + "</div>" +
         "<div>" + dashes + "</div>" +
         "<div>Bill No: " + escapeHtml(bill.BillNo) + "</div>" +
         "<div>Date: " + billDate + "</div>" +
@@ -280,6 +306,8 @@
       return;
     }
 
+    await loadBranchIdentities();
+
     const res = await fetch(API_URL + "?action=getBillDetails&token=" + encodeURIComponent(token) + "&billId=" + encodeURIComponent(billId));
     const data = await res.json();
 
@@ -291,6 +319,10 @@
     currentBill = data.data.bill;
     currentStudent = data.data.student;
     currentItems = data.data.items;
+
+    const identity = getBranchIdentity(currentBill.Branch);
+    document.querySelector("#receiptCard .shop-header h2").textContent = identity.businessName;
+    document.querySelector("#receiptCard .shop-header p").textContent = "Uniform Shop — " + identity.address;
 
     document.getElementById("content").innerHTML = buildReceiptHtml(currentBill, currentStudent, currentItems, "");
 
@@ -377,7 +409,7 @@
     });
 
     let message =
-      "BABA General Store — Bill Receipt\n" +
+      "*" + getBranchIdentity(currentBill.Branch).businessName + "* — Bill Receipt\n" +
       "Bill No: " + currentBill.BillNo + "\n" +
       "Date: " + billDate + "\n" +
       "Student: " + (currentStudent.StudentName || "-") + " (Adm# " + (currentStudent.AdmissionNo || "-") + ")\n\n" +
