@@ -214,7 +214,8 @@
       "</div>";
   }
 
-  uerpLoadBranchDropdown(API_URL, token, "branch", true).then(function () {
+  uerpLoadMasterData(API_URL, token).then(function (masterData) {
+    if (masterData.success) uerpPopulateBranchSelect(masterData.data.branches, "branch", true);
     loadActiveReport();
   });
 </script>

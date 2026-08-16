@@ -184,7 +184,8 @@
     if (data.success) showMsg("Password updated for " + name, "success"); else showMsg(data.message, "error");
   }
 
-  uerpLoadBranchDropdown(API_URL, token, "branch", false).then(function () {
+  uerpLoadMasterData(API_URL, token).then(function (masterData) {
+    if (masterData.success) uerpPopulateBranchSelect(masterData.data.branches, "branch", false);
     // This page assigns a branch TO a new user, so also offer "Both" for multi-branch staff
     const bothOpt = document.createElement("option");
     bothOpt.value = "Both"; bothOpt.textContent = "Both";

@@ -190,7 +190,8 @@
     }
   }
 
-  uerpLoadBranchDropdown(API_URL, token, "branchFilter", true).then(function () {
+  uerpLoadMasterData(API_URL, token).then(function (masterData) {
+    if (masterData.success) uerpPopulateBranchSelect(masterData.data.branches, "branchFilter", true);
     loadInventory();
   });
 </script>

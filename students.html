@@ -199,32 +199,29 @@
   let schoolsList = [];
   let sessionsList = [];
 
-  async function loadSchoolsDropdown() {
-    const res = await fetch(API_URL + "?action=listSchools&token=" + encodeURIComponent(token));
-    const data = await res.json();
-    if (!data.success) { showMsg(data.message, "error"); return; }
-    schoolsList = data.data.filter(function (s) { return s.Status === "Active"; });
-    const select = document.getElementById("schoolId");
+  async function loadSchoolsAndSessions() {
+    const masterData = await uerpLoadMasterData(API_URL, token);
+    if (!masterData.success) { showMsg(masterData.message, "error"); return; }
+    const d = masterData.data;
+
+    schoolsList = d.schools.filter(function (s) { return s.Status === "Active"; });
+    const schoolSelect = document.getElementById("schoolId");
+    schoolSelect.innerHTML = "<option value=''>-- Select --</option>";
     schoolsList.forEach(function (s) {
       const opt = document.createElement("option");
       opt.value = s.SchoolID;
       opt.textContent = s.SchoolName + " (" + s.Branch + ")";
-      select.appendChild(opt);
+      schoolSelect.appendChild(opt);
     });
-  }
 
-  async function loadSessionsDropdown() {
-    const res = await fetch(API_URL + "?action=listSessions&token=" + encodeURIComponent(token));
-    const data = await res.json();
-    if (!data.success) { showMsg(data.message, "error"); return; }
-    sessionsList = data.data;
-    const select = document.getElementById("sessionId");
-    select.innerHTML = "<option value=''>-- Select --</option>";
+    sessionsList = d.sessions;
+    const sessionSelect = document.getElementById("sessionId");
+    sessionSelect.innerHTML = "<option value=''>-- Select --</option>";
     sessionsList.forEach(function (s) {
       const opt = document.createElement("option");
       opt.value = s.SessionID;
       opt.textContent = s.SessionName;
-      select.appendChild(opt);
+      sessionSelect.appendChild(opt);
     });
   }
 
@@ -241,7 +238,8 @@
     if (data.success) {
       showMsg("Session added.", "success");
       document.getElementById("newSessionName").value = "";
-      loadSessionsDropdown();
+      uerpInvalidateCache("masterData"); // new session won't show up until the cache refreshes
+      loadSchoolsAndSessions();
     } else {
       showMsg(data.message, "error");
     }
@@ -701,8 +699,7 @@
     }
   }
 
-  loadSchoolsDropdown();
-  loadSessionsDropdown();
+  loadSchoolsAndSessions();
   loadStudents();
 </script>
 

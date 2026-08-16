@@ -114,17 +114,17 @@
   }
 
   async function loadSchoolsDropdown() {
-    const res = await fetch(API_URL + "?action=listSchools&token=" + encodeURIComponent(token));
-    const data = await res.json();
+    const masterData = await uerpLoadMasterData(API_URL, token);
     const select = document.getElementById("schoolId");
-    if (!data.success) { showMsg(data.message, "error"); return; }
-    data.data.filter(function (s) { return s.Status === "Active"; }).forEach(function (s) {
+    if (!masterData.success) { showMsg(masterData.message, "error"); return; }
+    const schools = masterData.data.schools.filter(function (s) { return s.Status === "Active"; });
+    schools.forEach(function (s) {
       const opt = document.createElement("option");
       opt.value = s.SchoolID;
       opt.textContent = s.SchoolName + " (" + s.Branch + ")";
       select.appendChild(opt);
     });
-    if (data.data.length === 0) {
+    if (schools.length === 0) {
       showMsg("No schools found — add a school first on the Schools page.", "error");
     }
   }

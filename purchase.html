@@ -205,13 +205,8 @@
     });
   }
 
-  async function loadDropdown(action, selectId, valueField, labelField, filterActive) {
-    const res = await fetch(API_URL + "?action=" + action + "&token=" + encodeURIComponent(token));
-    const data = await res.json();
-    if (!data.success) { showMsg(data.message, "error"); return; }
+  function populateSelect(selectId, items, valueField, labelField) {
     const select = document.getElementById(selectId);
-    let items = data.data;
-    if (filterActive) items = items.filter(function (i) { return i.Status === "Active"; });
     items.forEach(function (item) {
       const opt = document.createElement("option");
       opt.value = item[valueField];
@@ -223,23 +218,34 @@
   // ---------------- Scan Purchase Bill (AI) ----------------
   let productsList = [], coloursList = [], sizesList = [], suppliersList = [];
 
-  async function loadMasterLists() {
-    const p = await (await fetch(API_URL + "?action=listProducts&token=" + encodeURIComponent(token))).json();
-    if (p.success) productsList = p.data.filter(function (x) { return x.Status === "Active"; });
-    const c = await (await fetch(API_URL + "?action=listColours&token=" + encodeURIComponent(token))).json();
-    if (c.success) coloursList = c.data;
-    const s = await (await fetch(API_URL + "?action=listSizes&token=" + encodeURIComponent(token))).json();
-    if (s.success) sizesList = s.data;
-    const sup = await (await fetch(API_URL + "?action=listSuppliers&token=" + encodeURIComponent(token))).json();
-    if (sup.success) suppliersList = sup.data.filter(function (x) { return x.Status === "Active"; });
+  /**
+   * This page used to fire up to 10 separate requests on load (Products, Colours, Sizes,
+   * Suppliers, Branch, ReviewBranch, then Products/Colours/Sizes/Suppliers AGAIN for the
+   * AI-scan review section). Now it's just 1 batched request, reused for every dropdown
+   * on the page including the scan-review section.
+   */
+  let masterDataCache = null;
+  async function loadAllMasterData() {
+    const masterData = await uerpLoadMasterData(API_URL, token);
+    if (!masterData.success) {
+      showMsg(masterData.message, "error");
+      return;
+    }
+    masterDataCache = masterData.data;
+    const d = masterData.data;
 
-    // Also populate the review section's supplier dropdown
-    const supSelect = document.getElementById("reviewSupplierId");
-    suppliersList.forEach(function (s2) {
-      const opt = document.createElement("option");
-      opt.value = s2.SupplierID; opt.textContent = s2.SupplierName;
-      supSelect.appendChild(opt);
-    });
+    populateSelect("productId", d.products.filter(function (x) { return x.Status === "Active"; }), "ProductID", "ProductName");
+    populateSelect("colourId", d.colours, "ColourID", "ColourName");
+    populateSelect("sizeId", d.sizes, "SizeID", "SizeName");
+    populateSelect("supplierId", d.suppliers.filter(function (x) { return x.Status === "Active"; }), "SupplierID", "SupplierName");
+    uerpPopulateBranchSelect(d.branches, "branch", false);
+    uerpPopulateBranchSelect(d.branches, "reviewBranch", false);
+
+    productsList = d.products.filter(function (x) { return x.Status === "Active"; });
+    coloursList = d.colours;
+    sizesList = d.sizes;
+    suppliersList = d.suppliers.filter(function (x) { return x.Status === "Active"; });
+    populateSelect("reviewSupplierId", suppliersList, "SupplierID", "SupplierName");
   }
 
   function showScanMsg(text, type) {
@@ -567,14 +573,8 @@
     }
   }
 
-  loadDropdown("listProducts", "productId", "ProductID", "ProductName", true);
-  loadDropdown("listColours", "colourId", "ColourID", "ColourName", false);
-  loadDropdown("listSizes", "sizeId", "SizeID", "SizeName", false);
-  loadDropdown("listSuppliers", "supplierId", "SupplierID", "SupplierName", true);
-  uerpLoadBranchDropdown(API_URL, token, "branch", false);
-  uerpLoadBranchDropdown(API_URL, token, "reviewBranch", false);
+  loadAllMasterData();
   loadPurchases();
-  loadMasterLists();
 </script>
 
 </body>
