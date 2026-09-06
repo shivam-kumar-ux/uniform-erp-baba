@@ -143,11 +143,12 @@
   </div>
 
   <div class="card">
-    <h2>Recent Purchases</h2>
+    <h2>All Purchase Entries</h2>
     <table>
       <thead><tr><th>Date</th><th>Product</th><th>Colour</th><th>Size</th><th>Supplier</th><th>Branch</th><th>Qty</th><th>Remaining</th><th>Cost/Unit</th><th>Selling/Unit</th><th>Total Cost</th><th id="purchaseActionsHeader" style="display:none;">Actions</th></tr></thead>
       <tbody id="purchasesBody"><tr><td colspan="11">Loading...</td></tr></tbody>
     </table>
+    <div id="purchasesPagination"></div>
   </div>
 </div>
 
@@ -428,19 +429,35 @@
 
   let allPurchases = [];
 
+  const PURCHASES_PER_PAGE = 25;
+  let currentPurchasePage = 1;
+
   async function loadPurchases() {
     const res = await fetch(API_URL + "?action=listPurchases&token=" + encodeURIComponent(token));
     const data = await res.json();
     if (!data.success) { showMsg(data.message, "error"); return; }
 
     allPurchases = data.data;
+    currentPurchasePage = 1;
+    renderPurchasesPage();
+  }
+
+  function renderPurchasesPage() {
     const tbody = document.getElementById("purchasesBody");
     tbody.innerHTML = "";
-    if (data.data.length === 0) {
+
+    if (allPurchases.length === 0) {
       tbody.innerHTML = "<tr><td colspan='11'>No purchases recorded yet.</td></tr>";
+      document.getElementById("purchasesPagination").innerHTML = "";
       return;
     }
-    data.data.slice(0, 30).forEach(function (b) {
+
+    const totalPages = Math.max(1, Math.ceil(allPurchases.length / PURCHASES_PER_PAGE));
+    if (currentPurchasePage > totalPages) currentPurchasePage = totalPages;
+    const startIdx = (currentPurchasePage - 1) * PURCHASES_PER_PAGE;
+    const pageItems = allPurchases.slice(startIdx, startIdx + PURCHASES_PER_PAGE);
+
+    pageItems.forEach(function (b) {
       const tr = document.createElement("tr");
       tr.innerHTML =
         "<td>" + escapeHtml(b.PurchaseDate) + "</td>" +
@@ -457,9 +474,45 @@
         (isOwner
           ? "<td><button class='link-btn' onclick=\"openEditPurchase('" + b.BatchID + "')\">Edit</button>" +
             "<button class='delete-btn' onclick=\"deletePurchaseRow('" + b.BatchID + "')\">Delete</button></td>"
-          : "") ;
+          : "");
       tbody.appendChild(tr);
     });
+
+    renderPaginationControls(totalPages);
+  }
+
+  function renderPaginationControls(totalPages) {
+    const container = document.getElementById("purchasesPagination");
+    if (totalPages <= 1) { container.innerHTML = ""; return; }
+
+    let html = "<div style='display:flex; gap:6px; align-items:center; margin-top:12px; flex-wrap:wrap;'>";
+    html += "<button class='link-btn' " + (currentPurchasePage === 1 ? "disabled" : "") +
+      " onclick='goToPurchasePage(" + (currentPurchasePage - 1) + ")'>‹ Previous</button>";
+
+    // Show a reasonable window of page numbers around the current page, not all of them if there are many
+    const windowSize = 5;
+    let startPage = Math.max(1, currentPurchasePage - Math.floor(windowSize / 2));
+    let endPage = Math.min(totalPages, startPage + windowSize - 1);
+    startPage = Math.max(1, endPage - windowSize + 1);
+
+    if (startPage > 1) html += "<button class='link-btn' onclick='goToPurchasePage(1)'>1</button><span>…</span>";
+    for (let p = startPage; p <= endPage; p++) {
+      html += "<button class='" + (p === currentPurchasePage ? "btn-small" : "link-btn") + "' onclick='goToPurchasePage(" + p + ")'>" + p + "</button>";
+    }
+    if (endPage < totalPages) html += "<span>…</span><button class='link-btn' onclick='goToPurchasePage(" + totalPages + ")'>" + totalPages + "</button>";
+
+    html += "<button class='link-btn' " + (currentPurchasePage === totalPages ? "disabled" : "") +
+      " onclick='goToPurchasePage(" + (currentPurchasePage + 1) + ")'>Next ›</button>";
+    html += "<span style='font-size:12px; color:#888; margin-left:8px;'>Page " + currentPurchasePage + " of " + totalPages +
+      " (" + allPurchases.length + " total entries)</span>";
+    html += "</div>";
+    container.innerHTML = html;
+  }
+
+  function goToPurchasePage(page) {
+    currentPurchasePage = page;
+    renderPurchasesPage();
+    document.getElementById("purchasesBody").scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   function openEditPurchase(batchId) {

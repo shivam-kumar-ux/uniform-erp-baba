@@ -84,8 +84,7 @@
   }
 
   async function loadLogs() {
-    const res = await fetch(API_URL + "?action=listLogs&token=" + encodeURIComponent(token));
-    const data = await res.json();
+    const data = await uerpFetchJson(API_URL + "?action=listLogs&token=" + encodeURIComponent(token));
     if (!data.success) {
       document.getElementById("logsBody").innerHTML = "<tr><td colspan='6'>" + escapeHtml(data.message) + "</td></tr>";
       return;

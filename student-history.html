@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BABA General Store - Student Purchase History</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e3a5f">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css?v=5">
+<script src="app.js?v=5"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; }
+  header {
+    background: #1e3a5f; color: white; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header button {
+    background: #c0392b; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; margin-left: 12px; font-size: 13px;
+  }
+  nav { max-width: 900px; margin: 16px auto 0; padding: 0 16px; font-size: 13px; }
+  nav a { color: #2c5282; text-decoration: none; margin-right: 16px; }
+  .container { max-width: 900px; margin: 16px auto 24px; padding: 0 16px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .card h2 { font-size: 16px; margin: 0 0 16px; color: #1e3a5f; }
+  input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; width: 100%; }
+  .student-result { padding: 10px; border: 1px solid #eee; border-radius: 6px; margin-top: 8px; cursor: pointer; }
+  .student-result:hover { background: #f4f6f8; }
+  .student-selected { background: #e8f0fe; border-radius: 6px; padding: 12px; margin-top: 10px; font-size: 13px; }
+  .summary { display: flex; gap: 20px; margin-bottom: 16px; flex-wrap: wrap; }
+  .summary-box { background: #f4f6f8; border-radius: 6px; padding: 10px 16px; font-size: 13px; }
+  .summary-box strong { display: block; font-size: 18px; color: #1e3a5f; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; }
+  th { color: #666; font-weight: 600; }
+  .bill-block { border: 1px solid #eee; border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+  .bill-block-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px; flex-wrap: wrap; gap: 6px;
+  }
+  .status-tag { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .status-Paid { background: #e8f5e9; color: #1e7e34; }
+  .status-Partial { background: #fff8e1; color: #b8860b; }
+  .status-Due { background: #fdecea; color: #c0392b; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><strong>BABA General Store</strong> — Student Purchase History</h1>
+  <div><button onclick="logout()">Log Out</button></div>
+</header>
+
+<nav>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="billing.html">New Bill</a>
+  <a href="bills.html">Bill History</a>
+</nav>
+
+<div class="container">
+  <div class="card">
+    <h2>Find Student</h2>
+    <input id="studentSearch" placeholder="Search by admission no. or name..." oninput="searchStudents()">
+    <div id="studentResults"></div>
+    <div id="studentSelected" class="student-selected" style="display:none;"></div>
+  </div>
+
+  <div class="card" id="historyCard" style="display:none;">
+    <h2>Purchase History</h2>
+    <div class="summary">
+      <div class="summary-box">Total Bills<strong id="totalBillsCount">-</strong></div>
+      <div class="summary-box">Total Spent<strong id="totalSpent">-</strong></div>
+      <div class="summary-box">Total Items Bought<strong id="totalItemsCount">-</strong></div>
+    </div>
+    <div id="billsList"></div>
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwvIJ2hqiz_QfMZonLs0Qs9sCvSo6hYLsbKlyw_oNB8G4IyHjFlJmlG3RbrIkVw_FrS/exec";
+  const token = localStorage.getItem("uniformerp_token");
+  if (!token) window.location.href = "login.html";
+
+  function logout() { localStorage.clear(); window.location.href = "login.html"; }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  let searchTimer;
+  function searchStudents() {
+    clearTimeout(searchTimer);
+    const q = document.getElementById("studentSearch").value.trim();
+    if (q.length < 2) { document.getElementById("studentResults").innerHTML = ""; return; }
+    searchTimer = setTimeout(async function () {
+      const container = document.getElementById("studentResults");
+      container.innerHTML = "<div style='padding:8px; color:#888; font-size:13px;'>Searching...</div>";
+      const data = await uerpFetchJson(API_URL + "?action=listStudents&token=" + encodeURIComponent(token) + "&search=" + encodeURIComponent(q));
+      container.innerHTML = "";
+      if (!data.success) {
+        container.innerHTML = "<div style='padding:8px; color:#c0392b; font-size:13px;'>Search failed: " + escapeHtml(data.message) + "</div>";
+        return;
+      }
+      if (data.data.length === 0) {
+        container.innerHTML = "<div style='padding:8px; color:#888; font-size:13px;'>No students found.</div>";
+        return;
+      }
+      data.data.slice(0, 8).forEach(function (s) {
+        const div = document.createElement("div");
+        div.className = "student-result";
+        div.textContent = s.StudentName + " — Adm# " + s.AdmissionNo + " — " + s.SchoolName + " (Class " + s.ClassName + s.Section + ")";
+        div.onclick = function () { selectStudent(s); };
+        container.appendChild(div);
+      });
+    }, 300);
+  }
+
+  async function selectStudent(s) {
+    document.getElementById("studentResults").innerHTML = "";
+    document.getElementById("studentSearch").value = "";
+    const box = document.getElementById("studentSelected");
+    box.style.display = "block";
+    box.innerHTML = "<strong>" + escapeHtml(s.StudentName) + "</strong> — Adm# " + escapeHtml(s.AdmissionNo) +
+      "<br>" + escapeHtml(s.SchoolName) + " — Class " + escapeHtml(s.ClassName) + escapeHtml(s.Section);
+
+    document.getElementById("historyCard").style.display = "block";
+    document.getElementById("billsList").innerHTML = "Loading...";
+
+    const data = await uerpFetchJson(API_URL + "?action=getStudentPurchaseHistory&token=" + encodeURIComponent(token) + "&studentId=" + encodeURIComponent(s.StudentID));
+    if (!data.success) {
+      document.getElementById("billsList").innerHTML = "<p style='color:#c0392b;'>" + escapeHtml(data.message) + "</p>";
+      return;
+    }
+
+    const bills = data.data;
+    let totalSpent = 0, totalItems = 0;
+    let html = "";
+
+    if (bills.length === 0) {
+      html = "<p style='color:#888;'>No purchases yet for this student.</p>";
+    } else {
+      bills.forEach(function (b) {
+        totalSpent += Number(b.TotalAmount || 0);
+        const billDate = new Date(b.BillDate).toLocaleDateString();
+        html += "<div class='bill-block'>" +
+          "<div class='bill-block-header'>" +
+            "<span><strong>" + escapeHtml(b.BillNo) + "</strong> — " + billDate + " — " + escapeHtml(b.Branch) + "</span>" +
+            "<span>₹" + b.TotalAmount + " <span class='status-tag status-" + b.Status + "'>" + b.Status + "</span></span>" +
+          "</div>" +
+          "<table><thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody>";
+        b.items.forEach(function (it) {
+          totalItems += Number(it.Qty || 0);
+          html += "<tr>" +
+            "<td>" + escapeHtml(it.ProductName) + " (" + escapeHtml(it.ColourName) + ", " + escapeHtml(it.SizeName) + ")</td>" +
+            "<td>" + it.Qty + "</td>" +
+            "<td>₹" + it.UnitPrice + "</td>" +
+            "<td>₹" + it.LineTotal + "</td>" +
+            "</tr>";
+        });
+        html += "</tbody></table></div>";
+      });
+    }
+
+    document.getElementById("billsList").innerHTML = html;
+    document.getElementById("totalBillsCount").textContent = bills.length;
+    document.getElementById("totalSpent").textContent = "₹" + totalSpent.toFixed(2);
+    document.getElementById("totalItemsCount").textContent = totalItems;
+  }
+</script>
+
+</body>
+</html>
